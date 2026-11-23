@@ -1,0 +1,15 @@
+{
+  "name": "garagem-pixel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Foto de carro de lado vira sprite 2D em pixel art, com modo de exportação para o jogo Racha de Rua.",
+  "scripts": {
+    "build": "python3 build.py dist/garagem-pixel.html",
+    "test": "node test_pipeline.js dist/out && node test_racha.js dist/out",
+    "test:e2e": "npm run build && node tests/e2e/flow3.js $PWD/dist && node tests/e2e/flow_racha.js $PWD/dist",
+    "check": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
