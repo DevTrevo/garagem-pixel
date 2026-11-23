@@ -195,6 +195,41 @@ check('check flags semi transparent pixels', R.check(semiImg).find(c => c.id ===
 const dirty = R.render(prepared, R.carById('00'), opts); dirty.img.data[((20 * 132) + 25) * 4 + 3] = 255;
 check('check flags opaque pixel inside a wheel circle', R.check(dirty).find(c => c.id === 'wells').level === 'warn');
 
+// ---- robustez: valores aleatorios nunca quebram as regras do jogo ----
+(function () {
+  let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  let bad = 0, runs = 0, worst = 0;
+  for (let n = 0; n < 60; n++) {
+    const car = R.CARS[Math.floor(rnd() * R.CARS.length)];
+    const o = { rearX: 0.1 + rnd() * 0.3, frontX: 0.6 + rnd() * 0.32, wheelR: 0.05 + rnd() * 0.07, bodyDY: Math.round(-6 + rnd() * 16), bodyScaleY: Math.round(70 + rnd() * 40),
+      colors: Math.round(4 + rnd() * 20), hue: Math.round(-180 + rnd() * 360), sat: 0.6 + rnd() * 1.2, contrast: 0.7 + rnd() * 0.9, sharpen: rnd(), clean: Math.floor(rnd() * 3), rimlight: rnd(), shine: rnd() > 0.5, outline: rnd() > 0.2 };
+    const t0 = Date.now(); let res;
+    try { res = R.render(prepared, car, o); } catch (e) { bad++; console.log('  threw', car.id, JSON.stringify(o), e.message); continue; }
+    worst = Math.max(worst, Date.now() - t0); runs++;
+    const d = res.img.data; let semi = 0, inside = 0;
+    for (let y = 0; y < car.h; y++) for (let x = 0; x < car.w; x++) {
+      const a = d[(y * car.w + x) * 4 + 3]; if (a > 0 && a < 255) semi++;
+      if (a) for (const wh of [car.rear, car.front]) if (Math.hypot(x + 0.5 - wh[0], y + 0.5 - wh[1]) < 11.6) inside++;
+    }
+    if (res.img.w !== car.w || res.img.h !== car.h || semi || inside) { bad++; console.log('  rule broken', car.id, JSON.stringify(o), res.img.w, res.img.h, semi, inside); }
+  }
+  check('60 random settings keep size, binary alpha and empty wells', bad === 0 && runs === 60, 'runs=' + runs + ' worst=' + worst + 'ms');
+})();
+
+// ---- carros sem matiz (cinza, branco, preto) ----
+[['gray', 0], ['white', 1], ['black', -1]].forEach(([name, mode]) => {
+  const p2 = P.cloneImage(prepared.img);
+  for (let i = 0; i < p2.data.length; i += 4) {
+    const l = Math.round(0.3 * p2.data[i] + 0.59 * p2.data[i + 1] + 0.11 * p2.data[i + 2]);
+    const v = mode === 0 ? l : mode === 1 ? Math.min(255, 150 + l * 0.4) : l * 0.25;
+    p2.data[i] = p2.data[i + 1] = p2.data[i + 2] = v;
+  }
+  const r = R.render({ img: p2 }, R.carById('15'), opts);
+  const bad = r.checks.filter(c => c.level === 'warn');
+  check('neutral ' + name + ' car renders without warnings', bad.length === 0, bad.map(c => c.text).join(' | '));
+  check('neutral ' + name + ' car has no paint hue', r.paint.hue == null);
+});
+
 // ---- imagens para olhar ----
 fs.mkdirSync(outDir, { recursive: true });
 function guideOn(res, k) {
