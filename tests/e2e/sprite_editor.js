@@ -23,6 +23,7 @@ const MOCK = () => {
   ok('editor visible, generator hidden', (await page.isVisible('#edView')) && (await page.isHidden('#genView')));
 
   await page.fill('#edW', '16'); await page.fill('#edH', '12'); await page.click('#edResize');
+  await page.click('[data-ezoom="8"]');
   const box = await page.locator('#edCanvas').boundingBox();
   const cell = box.width / 16;
   const at = (x, y) => [box.x + (x + 0.5) * cell, box.y + (y + 0.5) * cell];
@@ -93,6 +94,18 @@ const MOCK = () => {
   ok('drawing restored after reload', dims2.join() === dims.join(), dims2.join('x'));
   await page.screenshot({ path: sp + '/out/sprite_editor.png' });
 
+  // zoom automático: desenho inteiro cabe sem barra de rolagem; +/- e Ctrl+roda mudam o zoom
+  await page.click('[data-ezoom="auto"]'); await page.waitForTimeout(150);
+  const fit = await page.evaluate(() => { const s = document.getElementById('edScroll'); return [s.scrollWidth <= s.clientWidth + 1, s.scrollHeight <= s.clientHeight + 1, document.getElementById('edCanvas').width]; });
+  ok('auto zoom fits without scrollbars', fit[0] && fit[1], fit.join());
+  const z0 = fit[2];
+  await page.click('#edZoomOut'); await page.waitForTimeout(100);
+  ok('zoom out shrinks canvas', (await page.evaluate(() => document.getElementById('edCanvas').width)) < z0);
+  await page.keyboard.press('0'); await page.waitForTimeout(100);
+  ok('key 0 back to auto', (await page.evaluate(() => document.getElementById('edCanvas').width)) === z0);
+  await page.setViewportSize({ width: 800, height: 700 }); await page.waitForTimeout(400);
+  const w2 = await page.evaluate(() => { const s = document.getElementById('edScroll'); return [document.getElementById('edCanvas').width <= s.clientWidth, s.scrollHeight <= s.clientHeight + 1]; });
+  ok('auto zoom follows window size', w2[0] && w2[1], w2.join());
   await page.setViewportSize({ width: 400, height: 900 }); await page.waitForTimeout(300);
   ok('no horizontal overflow at 400px', (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
   await page.click('#tabGen'); await page.waitForTimeout(200);
