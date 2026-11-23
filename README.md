@@ -51,3 +51,16 @@ Observação: nos carros 04 e 05 a base da roda fica 2 px acima da última linha
 1. Edite em `src/`.
 2. `npm run check`.
 3. Commit e push na `main`. O CI roda build e testes e guarda `garagem-pixel.html` como artefato.
+
+## Editor de sprites (aba)
+
+Aba "Editor de sprites" no topo da página: uma grade de pixels para desenhar do zero ou retocar um carro.
+
+- Ferramentas: lápis, borracha, balde, conta-gotas, linha, retângulo, elipse (cheios ou só contorno) e simetria. Botão direito apaga com o lápis.
+- Atalhos: B, E, G, I, L, R, O, Ctrl+Z, Ctrl+Y.
+- Cores: paleta Sweetie 16, cor livre, "Guardar cor" e as cores usadas no desenho.
+- Tela de 1 a 256 px, zoom de 4× a 24×, grade, espelhar, limpar.
+- Abre o carro do gerador, um carro da garagem ou um PNG; salva PNG em 1× a 8× ou envia para a garagem.
+- O último desenho fica guardado no navegador.
+- Código: `src/sprite.js` (lógica pura, testada em `test_sprite.js`) e a interface em `src/template.html`.
+- Próximas etapas planejadas: camadas e frames com prévia animada, exportar folha de frames e GIF.

@@ -158,6 +158,32 @@
   .nudge { display: flex; gap: 8px; align-items: center; }
   #fallback { margin: 0; display: flex; flex-direction: column; gap: 6px; }
   #fallback img { image-rendering: pixelated; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); }
+
+  /* ---------- aba Editor de sprites ---------- */
+  .tabs { margin-left: auto; }
+  .ed { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .ed { grid-template-columns: minmax(0, 1fr); } }
+  .ed-main, .ed-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .ed-canvas { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto; max-height: 72vh; }
+  .ed-board { position: relative; width: max-content; margin: 0 auto; line-height: 0; touch-action: none;
+    background: conic-gradient(#2d2640 25%, #383050 0 50%, #2d2640 0 75%, #383050 0) 0 0 / 16px 16px; }
+  #edCanvas, #edGrid { display: block; image-rendering: pixelated; }
+  #edCanvas { cursor: crosshair; }
+  #edGrid { position: absolute; inset: 0; pointer-events: none; }
+  .tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .tools .btn { padding: 9px 4px; font-size: 12px; }
+  .ed-pal { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ed-pal button { width: 22px; height: 22px; padding: 0; border-radius: 3px; border: 1px solid rgba(255,255,255,.18); cursor: pointer; }
+  .ed-pal button[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .cur { display: flex; align-items: center; gap: 10px; }
+  .cur input[type=color] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); cursor: pointer; }
+  .cur .swatch { width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--line); }
+  .dims { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+  .dims input[type=number] { font: 400 14px/1.2 var(--font-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumbs button { padding: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+  .thumbs button:hover { border-color: var(--accent); }
+  .thumbs img { display: block; height: 32px; width: auto; max-width: 110px; image-rendering: pixelated; }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
@@ -165,9 +191,13 @@
   <header class="top">
     <h1>Garagem Pixel</h1>
     <p>Foto de carro de lado vira sprite 2D animado para o seu jogo.</p>
+    <div class="seg tabs" role="group" aria-label="Seções">
+      <button type="button" class="btn" id="tabGen" aria-pressed="true">Gerador</button>
+      <button type="button" class="btn" id="tabEd" aria-pressed="false">Editor de sprites</button>
+    </div>
   </header>
 
-  <main class="bench">
+  <main class="bench" id="genView">
     <section class="stage-col" aria-label="Resultado">
       <div class="sticky">
         <div class="stage" id="stage">
@@ -542,6 +572,120 @@
       </details>
     </aside>
   </main>
+
+  <main class="ed" id="edView" hidden>
+    <section class="ed-main" aria-label="Área de desenho">
+      <div class="bar">
+        <div class="seg" role="group" aria-label="Zoom">
+          <button type="button" class="btn" data-ezoom="4" aria-pressed="false">4×</button>
+          <button type="button" class="btn" data-ezoom="8" aria-pressed="true">8×</button>
+          <button type="button" class="btn" data-ezoom="12" aria-pressed="false">12×</button>
+          <button type="button" class="btn" data-ezoom="16" aria-pressed="false">16×</button>
+          <button type="button" class="btn" data-ezoom="24" aria-pressed="false">24×</button>
+        </div>
+        <label class="check"><input type="checkbox" id="edGridOn" checked>Grade</label>
+        <span class="meta" id="edPos">Passe o mouse sobre o desenho.</span>
+      </div>
+      <div class="ed-canvas" id="edScroll">
+        <div class="ed-board" id="edBoard">
+          <canvas id="edCanvas" role="img" aria-label="Área de desenho do sprite"></canvas>
+          <canvas id="edGrid" aria-hidden="true"></canvas>
+        </div>
+      </div>
+      <p class="note" id="edStatus" role="status" aria-live="polite">Escolha uma ferramenta e desenhe. Botão direito apaga com o lápis.</p>
+    </section>
+    <aside class="ed-side" aria-label="Ferramentas do editor">
+      <details class="step" open>
+        <summary><span class="n">1</span>Ferramentas</summary>
+        <div class="body">
+          <div class="tools" role="group" aria-label="Ferramentas">
+            <button type="button" class="btn" data-etool="pencil" aria-pressed="true" title="Lápis (B)">Lápis</button>
+            <button type="button" class="btn" data-etool="eraser" aria-pressed="false" title="Borracha (E)">Borracha</button>
+            <button type="button" class="btn" data-etool="bucket" aria-pressed="false" title="Balde (G)">Balde</button>
+            <button type="button" class="btn" data-etool="picker" aria-pressed="false" title="Conta-gotas (I)">Conta-gotas</button>
+            <button type="button" class="btn" data-etool="line" aria-pressed="false" title="Linha (L)">Linha</button>
+            <button type="button" class="btn" data-etool="rect" aria-pressed="false" title="Retângulo (R)">Retângulo</button>
+            <button type="button" class="btn" data-etool="ellipse" aria-pressed="false" title="Elipse (O)">Elipse</button>
+          </div>
+          <div class="two">
+            <label class="check"><input type="checkbox" id="edFill">Formas cheias</label>
+            <label class="check"><input type="checkbox" id="edMirror">Simetria</label>
+          </div>
+          <div class="btns">
+            <button type="button" class="btn" id="spUndo" disabled title="Desfazer (Ctrl+Z)">Desfazer</button>
+            <button type="button" class="btn" id="spRedo" disabled title="Refazer (Ctrl+Y)">Refazer</button>
+          </div>
+          <p class="note">Atalhos: B lápis, E borracha, G balde, I conta-gotas, L linha, R retângulo, O elipse, Ctrl+Z e Ctrl+Y.</p>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">2</span>Cores</summary>
+        <div class="body">
+          <div class="cur">
+            <span class="swatch" id="edSwatch"></span>
+            <input type="color" id="edColor" value="#ef7d57" aria-label="Escolher cor">
+            <button type="button" class="btn" id="edAddColor">Guardar cor</button>
+          </div>
+          <p class="sub">Paleta</p>
+          <div class="ed-pal" id="edPal" aria-label="Paleta"></div>
+          <p class="sub">Cores do desenho</p>
+          <div class="ed-pal" id="edUsed" aria-label="Cores usadas no desenho"></div>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">3</span>Tela</summary>
+        <div class="body">
+          <div class="dims">
+            <label class="field"><span>Largura</span><input type="number" id="edW" min="1" max="256" value="64"></label>
+            <label class="field"><span>Altura</span><input type="number" id="edH" min="1" max="256" value="48"></label>
+            <button type="button" class="btn" id="edResize">Aplicar</button>
+          </div>
+          <div class="btns">
+            <button type="button" class="btn" id="edNew">Nova tela em branco</button>
+            <button type="button" class="btn" id="spClear">Limpar</button>
+          </div>
+          <div class="btns">
+            <button type="button" class="btn" id="edFlipH">Espelhar ↔</button>
+            <button type="button" class="btn" id="edFlipV">Espelhar ↕</button>
+          </div>
+          <p class="note">Aplicar muda o tamanho mantendo o desenho no canto superior esquerdo. Tamanho de 1 a 256 px.</p>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">4</span>Abrir</summary>
+        <div class="body">
+          <div class="btns">
+            <button type="button" class="btn" id="edFromCar">Carro do gerador</button>
+            <label class="btn" for="edFile">Abrir PNG</label>
+            <input class="sr" type="file" id="edFile" accept="image/png,image/gif,image/webp">
+          </div>
+          <p class="sub">Da garagem</p>
+          <div class="thumbs" id="edGarage"></div>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">5</span>Salvar</summary>
+        <div class="body">
+          <label class="field"><span>Nome do arquivo</span>
+            <input type="text" id="edName" maxlength="40" value="meu-sprite" autocomplete="off" spellcheck="false"></label>
+          <div class="field">
+            <span>Tamanho da imagem</span>
+            <div class="seg" role="group" aria-label="Tamanho da imagem do editor">
+              <button type="button" class="btn" data-escale="1" aria-pressed="true">1×</button>
+              <button type="button" class="btn" data-escale="2" aria-pressed="false">2×</button>
+              <button type="button" class="btn" data-escale="4" aria-pressed="false">4×</button>
+              <button type="button" class="btn" data-escale="8" aria-pressed="false">8×</button>
+            </div>
+          </div>
+          <div class="btns">
+            <button type="button" class="btn primary" id="edSave">Salvar PNG</button>
+            <button type="button" class="btn" id="edToGarage">Enviar para a garagem</button>
+          </div>
+          <p class="meta" id="edInfo"></p>
+        </div>
+      </details>
+    </aside>
+  </main>
 </div>
 
 <script>
@@ -554,9 +698,12 @@
 /*RACHA*/
 </script>
 <script>
+/*SPRITE*/
+</script>
+<script>
 (function () {
   'use strict';
-  var P = window.PixelCar, E = window.PixelEnc, RC = P.Racha;
+  var P = window.PixelCar, E = window.PixelEnc, RC = P.Racha, SP = window.PixelSprite;
 
   var DEFAULTS = {
     tol: 40, flip: false, seed: null,
@@ -1876,11 +2023,340 @@
     }).catch(function (err) { aiBusy(false); aiError(err); });
   });
 
+
+  /* ---------- aba Editor de sprites ---------- */
+  var ed = {
+    doc: SP.create(64, 48), hist: SP.history(120), tool: 'pencil', color: [239, 125, 87], zoom: 8, grid: true, scale: 1,
+    pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0
+  };
+  var ED_KEY = 'garagem-pixel-editor-v1';
+  var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas');
+  function edSay(t) { $('edStatus').textContent = t; }
+
+  function edSaveSoon() {
+    clearTimeout(ed.saveTimer);
+    ed.saveTimer = setTimeout(function () {
+      try { localStorage.setItem(ED_KEY, JSON.stringify({ url: toCanvas(ed.doc).toDataURL('image/png'), pal: ed.pal.map(SP.toHex), name: $('edName').value })); } catch (e) { /* armazenamento pode estar bloqueado */ }
+    }, 400);
+  }
+  function edLoadSaved() {
+    try {
+      var s = JSON.parse(localStorage.getItem(ED_KEY) || 'null');
+      if (!s || typeof s.url !== 'string' || s.url.indexOf('data:image/png') !== 0) return;
+      if (Array.isArray(s.pal)) {
+        var pal = s.pal.map(SP.parseHex).filter(Boolean).slice(0, 48);
+        if (pal.length) ed.pal = pal;
+      }
+      if (typeof s.name === 'string') $('edName').value = s.name.replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40) || 'meu-sprite';
+      imageFromUrl(s.url, function (im) { if (im) { edSetDoc(SP.fromImage(im), true); edSay('Seu último desenho foi recuperado.'); } });
+    } catch (e) { /* ignore */ }
+  }
+  function imageFromUrl(url, cb) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      var g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      var d = g.getImageData(0, 0, c.width, c.height);
+      cb({ w: c.width, h: c.height, data: d.data });
+    };
+    img.onerror = function () { cb(null); };
+    img.src = url;
+  }
+
+  function edHasInk() { var d = ed.doc.data; for (var i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }
+  // Ações que apagam o desenho pedem um segundo clique (confirm() não existe aqui).
+  function edConfirm(key, btn, label, go) {
+    if (ed.armed === key) { clearTimeout(ed.armedTimer); ed.armed = null; btn.textContent = btn.getAttribute('data-label'); go(); return; }
+    if (!edHasInk()) { go(); return; }
+    ed.armed = key; btn.setAttribute('data-label', label); btn.textContent = 'Clique de novo para apagar o desenho';
+    clearTimeout(ed.armedTimer);
+    ed.armedTimer = setTimeout(function () { ed.armed = null; btn.textContent = label; }, 3000);
+  }
+  function edSetDoc(d, keepHist) {
+    ed.doc = d;
+    if (!keepHist) ed.hist.clear();
+    $('edW').value = d.w; $('edH').value = d.h;
+    edLayout(); edRefresh();
+  }
+  function edLayout() {
+    var w = ed.doc.w, h = ed.doc.h, z = ed.zoom;
+    edBuf.width = w; edBuf.height = h;
+    edCanvas.width = w * z; edCanvas.height = h * z;
+    edGrid.width = w * z; edGrid.height = h * z;
+    drawGrid();
+  }
+  function drawGrid() {
+    var g = edGrid.getContext('2d'), z = ed.zoom, w = ed.doc.w, h = ed.doc.h;
+    g.clearRect(0, 0, edGrid.width, edGrid.height);
+    if (!ed.grid || z < 6) return;
+    g.fillStyle = 'rgba(255,255,255,0.14)';
+    for (var x = 1; x < w; x++) g.fillRect(x * z, 0, 1, h * z);
+    for (var y = 1; y < h; y++) g.fillRect(0, y * z, w * z, 1);
+  }
+  function edDraw() {
+    var g = edBuf.getContext('2d');
+    g.putImageData(new ImageData(new Uint8ClampedArray(ed.doc.data), ed.doc.w, ed.doc.h), 0, 0);
+    var c = edCanvas.getContext('2d'); c.imageSmoothingEnabled = false;
+    c.clearRect(0, 0, edCanvas.width, edCanvas.height);
+    c.drawImage(edBuf, 0, 0, edCanvas.width, edCanvas.height);
+    // fundo xadrez acompanha o zoom
+    $('edBoard').style.backgroundSize = Math.max(8, ed.zoom * 2) + 'px ' + Math.max(8, ed.zoom * 2) + 'px';
+  }
+  function edUsedPalette() {
+    var box = $('edUsed'); box.textContent = '';
+    SP.usedColors(ed.doc, 32).forEach(function (c) { box.appendChild(swatchBtn(c)); });
+    if (!box.childNodes.length) { var p = document.createElement('span'); p.className = 'note'; p.textContent = 'Nenhuma ainda.'; box.appendChild(p); }
+  }
+  function swatchBtn(c) {
+    var b = document.createElement('button'); b.type = 'button';
+    var hx = SP.toHex(c);
+    b.style.background = hx; b.title = hx; b.setAttribute('aria-label', 'Cor ' + hx);
+    b.setAttribute('aria-pressed', String(hx === SP.toHex(ed.color)));
+    b.addEventListener('click', function () { edSetColor(c); if (ed.tool === 'eraser') edSetTool('pencil'); });
+    return b;
+  }
+  function edPalette() {
+    var box = $('edPal'); box.textContent = '';
+    ed.pal.forEach(function (c) { box.appendChild(swatchBtn(c)); });
+  }
+  function edSetColor(c) {
+    ed.color = [c[0], c[1], c[2]];
+    $('edSwatch').style.background = SP.toHex(ed.color);
+    $('edColor').value = SP.toHex(ed.color);
+    edPalette(); edUsedPalette();
+  }
+  function edSetTool(t) {
+    ed.tool = t;
+    document.querySelectorAll('[data-etool]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-etool') === t)); });
+  }
+  function edRefresh() {
+    edDraw(); edUsedPalette();
+    $('spUndo').disabled = !ed.hist.undo.length; $('spRedo').disabled = !ed.hist.redo.length;
+    $('edInfo').textContent = 'PNG: ' + ed.doc.w * ed.scale + ' × ' + ed.doc.h * ed.scale + ' px · ' + SP.usedColors(ed.doc, 999).length + ' cores';
+  }
+
+  function edPoint(ev) {
+    var r = edCanvas.getBoundingClientRect();
+    return [Math.floor((ev.clientX - r.left) / r.width * ed.doc.w), Math.floor((ev.clientY - r.top) / r.height * ed.doc.h)];
+  }
+  // pinta (ou apaga) um pixel, com simetria opcional
+  function stamp(x, y, col) {
+    var d = ed.doc;
+    SP.set(d, x, y, col);
+    if ($('edMirror').checked) SP.set(d, d.w - 1 - x, y, col);
+  }
+  function edPointerDown(ev) {
+    if (ev.button !== 0 && ev.button !== 2) return;
+    ev.preventDefault();
+    var p = edPoint(ev);
+    if (!SP.inside(ed.doc, p[0], p[1])) return;
+    var erase = ev.button === 2 || ed.tool === 'eraser';
+    var col = erase ? [0, 0, 0, 0] : [ed.color[0], ed.color[1], ed.color[2], 255];
+    if (ed.tool === 'picker') {
+      var c = SP.get(ed.doc, p[0], p[1]);
+      if (c && c[3]) { edSetColor(c); edSay('Cor ' + SP.toHex(c) + ' escolhida.'); }
+      else edSay('Esse pixel está vazio.');
+      return;
+    }
+    try { edCanvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+    ed.drag = { before: SP.clone(ed.doc), start: p, col: col, tool: ed.tool };
+    ed.last = p;
+    if (ed.tool === 'bucket') {
+      SP.flood(ed.doc, p[0], p[1], function (x, y) { stamp(x, y, col); });
+      edEnd();
+      return;
+    }
+    if (ed.tool === 'pencil' || ed.tool === 'eraser') stamp(p[0], p[1], col);
+    edDraw();
+  }
+  function edShape(a, b) {
+    var d = ed.drag, fill = $('edFill').checked;
+    ed.doc.data.set(d.before.data);
+    var cb = function (x, y) { stamp(x, y, d.col); };
+    if (d.tool === 'line') SP.line(a[0], a[1], b[0], b[1], cb);
+    else if (d.tool === 'rect') SP.rect(a[0], a[1], b[0], b[1], fill, cb);
+    else if (d.tool === 'ellipse') SP.ellipse(a[0], a[1], b[0], b[1], fill, cb);
+  }
+  function edPointerMove(ev) {
+    var p = edPoint(ev);
+    if (SP.inside(ed.doc, p[0], p[1])) {
+      var c = SP.get(ed.doc, p[0], p[1]);
+      $('edPos').textContent = 'x ' + p[0] + ' · y ' + p[1] + (c[3] ? ' · ' + SP.toHex(c) : ' · vazio');
+    }
+    if (!ed.drag) return;
+    var d = ed.drag;
+    if (d.tool === 'pencil' || d.tool === 'eraser') {
+      SP.line(ed.last[0], ed.last[1], p[0], p[1], function (x, y) { stamp(x, y, d.col); });
+      ed.last = p;
+    } else if (d.tool === 'line' || d.tool === 'rect' || d.tool === 'ellipse') {
+      edShape(d.start, p);
+    }
+    edDraw();
+  }
+  function edEnd() {
+    if (!ed.drag) return;
+    var entry = SP.diff(ed.drag.before, ed.doc);
+    ed.drag = null;
+    if (entry) { ed.hist.push(entry); edSaveSoon(); }
+    edRefresh();
+  }
+  edCanvas.addEventListener('pointerdown', edPointerDown);
+  edCanvas.addEventListener('pointermove', edPointerMove);
+  edCanvas.addEventListener('pointerup', edEnd);
+  edCanvas.addEventListener('pointercancel', edEnd);
+  edCanvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  edCanvas.addEventListener('pointerleave', function () { if (!ed.drag) $('edPos').textContent = 'Passe o mouse sobre o desenho.'; });
+
+  function edUndo() { if (ed.hist.back(ed.doc)) { edSaveSoon(); edRefresh(); } }
+  function edRedo() { if (ed.hist.forward(ed.doc)) { edSaveSoon(); edRefresh(); } }
+  // Troca o desenho inteiro como um passo desfazível (quando o tamanho não muda) ou limpa o histórico.
+  function edReplace(nd, say) {
+    if (nd.w === ed.doc.w && nd.h === ed.doc.h) {
+      ed.hist.push(SP.diff(ed.doc, nd)); ed.doc = nd; edRefresh();
+    } else { edSetDoc(nd); }
+    edSaveSoon(); if (say) edSay(say);
+  }
+
+  document.querySelectorAll('[data-etool]').forEach(function (b) { b.addEventListener('click', function () { edSetTool(b.getAttribute('data-etool')); }); });
+  document.querySelectorAll('[data-ezoom]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      ed.zoom = parseInt(b.getAttribute('data-ezoom'), 10);
+      document.querySelectorAll('[data-ezoom]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      edLayout(); edDraw();
+    });
+  });
+  document.querySelectorAll('[data-escale]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      ed.scale = parseInt(b.getAttribute('data-escale'), 10);
+      document.querySelectorAll('[data-escale]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      edRefresh();
+    });
+  });
+  $('edGridOn').addEventListener('change', function () { ed.grid = this.checked; drawGrid(); });
+  $('spUndo').addEventListener('click', edUndo);
+  $('spRedo').addEventListener('click', edRedo);
+  $('edColor').addEventListener('input', function () { var c = SP.parseHex(this.value); if (c) { edSetColor(c); if (ed.tool === 'eraser') edSetTool('pencil'); } });
+  $('edAddColor').addEventListener('click', function () {
+    var hx = SP.toHex(ed.color);
+    if (ed.pal.some(function (c) { return SP.toHex(c) === hx; })) { edSay('Essa cor já está na paleta.'); return; }
+    ed.pal.push(ed.color.slice()); if (ed.pal.length > 48) ed.pal.shift();
+    edPalette(); edSaveSoon(); edSay('Cor ' + hx + ' guardada na paleta.');
+  });
+  $('edResize').addEventListener('click', function () {
+    var w = clamp(parseInt($('edW').value, 10) || ed.doc.w, 1, 256), h = clamp(parseInt($('edH').value, 10) || ed.doc.h, 1, 256);
+    $('edW').value = w; $('edH').value = h;
+    if (w === ed.doc.w && h === ed.doc.h) return;
+    edSetDoc(SP.resize(ed.doc, w, h)); edSaveSoon();
+    edSay('Tela agora com ' + w + ' × ' + h + ' px. O histórico de desfazer foi reiniciado.');
+  });
+  $('edNew').addEventListener('click', function () {
+    var b = this;
+    edConfirm('new', b, 'Nova tela em branco', function () {
+      var w = clamp(parseInt($('edW').value, 10) || 64, 1, 256), h = clamp(parseInt($('edH').value, 10) || 48, 1, 256);
+      edSetDoc(SP.create(w, h)); edSaveSoon(); edSay('Tela em branco de ' + w + ' × ' + h + ' px.');
+    });
+  });
+  $('spClear').addEventListener('click', function () {
+    var before = SP.clone(ed.doc);
+    ed.doc.data.fill(0);
+    ed.hist.push(SP.diff(before, ed.doc)); edRefresh(); edSaveSoon(); edSay('Desenho limpo. Use Desfazer para voltar.');
+  });
+  $('edFlipH').addEventListener('click', function () { edReplace(SP.flipH(ed.doc), 'Desenho espelhado na horizontal.'); });
+  $('edFlipV').addEventListener('click', function () { edReplace(SP.flipV(ed.doc), 'Desenho espelhado na vertical.'); });
+
+  $('edFromCar').addEventListener('click', function () {
+    if (!stat) { edSay('Gere um carro no Gerador primeiro.'); return; }
+    var b = this;
+    edConfirm('car', b, 'Carro do gerador', function () {
+      var d = SP.fromImage(stat.img);
+      edSetDoc(d); edSaveSoon();
+      edSay('Carro do gerador aberto (' + d.w + ' × ' + d.h + ' px). Pode retocar à vontade.' + (stat.img.w > 256 || stat.img.h > 256 ? ' Atenção: o editor aceita até 256 px, o resto foi cortado.' : ''));
+    });
+  });
+  $('edFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; this.value = '';
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    imageFromUrl(url, function (im) {
+      URL.revokeObjectURL(url);
+      if (!im) { edSay('Não consegui abrir essa imagem.'); return; }
+      var big = im.w > 256 || im.h > 256;
+      edSetDoc(SP.fromImage(im)); edSaveSoon();
+      edSay('Imagem aberta (' + Math.min(im.w, 256) + ' × ' + Math.min(im.h, 256) + ' px).' + (big ? ' Ela passava de 256 px, então foi cortada.' : ''));
+    });
+  });
+  function edGaragePicker() {
+    var box = $('edGarage'); box.textContent = '';
+    if (!garage.length) { var p = document.createElement('span'); p.className = 'note'; p.textContent = 'A garagem está vazia.'; box.appendChild(p); return; }
+    garage.forEach(function (it, idx) {
+      var b = document.createElement('button'); b.type = 'button'; b.title = 'Abrir este carro no editor'; b.setAttribute('aria-label', 'Abrir o carro ' + (idx + 1) + ' da garagem');
+      var im = document.createElement('img'); im.src = it.url; im.alt = ''; b.appendChild(im);
+      b.addEventListener('click', function () {
+        var key = 'g' + it.id;
+        if (ed.armed !== key && edHasInk()) {
+          ed.armed = key; clearTimeout(ed.armedTimer);
+          ed.armedTimer = setTimeout(function () { ed.armed = null; }, 3000);
+          edSay('Isso troca o desenho atual. Clique de novo no mesmo carro para confirmar.');
+          return;
+        }
+        ed.armed = null;
+        imageFromUrl(it.url, function (img) {
+          if (!img) { edSay('Não consegui abrir esse carro.'); return; }
+          edSetDoc(SP.fromImage(img)); edSaveSoon(); edSay('Carro da garagem aberto no editor.');
+        });
+      });
+      box.appendChild(b);
+    });
+  }
+  function edFileName() { return ($('edName').value || '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'meu-sprite'; }
+  $('edSave').addEventListener('click', function () {
+    var c = scaleCanvas(toCanvas(ed.doc), ed.scale), name = edFileName() + (ed.scale > 1 ? '-' + ed.scale + 'x' : '') + '.png';
+    canvasToBlob(c).then(function (blob) {
+      saveData(blob, name, 'image/png', function (n, msg) { edSay(n ? 'Arquivo ' + n + ' salvo.' : msg); });
+    });
+  });
+  $('edToGarage').addEventListener('click', function () {
+    if (!edHasInk()) { edSay('Desenhe alguma coisa antes de enviar.'); return; }
+    var dropped = pushGarage(ed.doc, null);
+    saveGarage(); renderGarage(); edGaragePicker();
+    edSay(dropped ? 'Enviado para a garagem. O mais antigo saiu para caber.' : 'Enviado para a garagem.');
+  });
+  $('edName').addEventListener('input', edSaveSoon);
+
+  document.addEventListener('keydown', function (ev) {
+    if ($('edView').hidden) return;
+    var tg = ev.target && ev.target.tagName;
+    var ty = ev.target && ev.target.type;
+    if (tg === 'SELECT' || tg === 'TEXTAREA' || (tg === 'INPUT' && (ty === 'text' || ty === 'number'))) return;
+    var k = ev.key.toLowerCase();
+    if ((ev.ctrlKey || ev.metaKey) && k === 'z') { ev.preventDefault(); if (ev.shiftKey) edRedo(); else edUndo(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && k === 'y') { ev.preventDefault(); edRedo(); return; }
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    var map = { b: 'pencil', e: 'eraser', g: 'bucket', i: 'picker', l: 'line', r: 'rect', o: 'ellipse' };
+    if (map[k]) { edSetTool(map[k]); }
+  });
+
+  var edStarted = false;
+  function showView(v) {
+    var ev = v === 'ed';
+    $('genView').hidden = ev; $('edView').hidden = !ev;
+    $('tabGen').setAttribute('aria-pressed', String(!ev)); $('tabEd').setAttribute('aria-pressed', String(ev));
+    if (ev) {
+      if (!edStarted) { edStarted = true; edLoadSaved(); }
+      edGaragePicker(); edLayout(); edRefresh();
+    }
+    try { history.replaceState(null, '', ev ? '#editor' : location.pathname + location.search); } catch (e) { /* ignore */ }
+  }
+  $('tabGen').addEventListener('click', function () { showView('gen'); });
+  $('tabEd').addEventListener('click', function () { showView('ed'); });
+  edSetColor(ed.color); edPalette(); edLayout(); edDraw();
+
   /* ---------- start ---------- */
   buildSpec();
   fillCarSelect();
   loadGarage(); renderGarage();
   writeInputs();
   loadSample();
+  if (location.hash === '#editor') showView('ed');
 })();
 </script>
