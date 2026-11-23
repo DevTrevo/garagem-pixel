@@ -134,6 +134,7 @@
   .garage .x:hover { border-color: var(--accent); }
   .scene-wrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; }
   #guide { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .scene-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .scene-wrap.editing { cursor: crosshair; touch-action: none; }
   button.sw { padding: 0; cursor: pointer; background-clip: padding-box; }
   button.sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -170,7 +171,7 @@
     <section class="stage-col" aria-label="Resultado">
       <div class="sticky">
         <div class="stage" id="stage">
-          <div class="scene-wrap" id="sceneWrap">
+          <div class="scene-wrap" id="sceneWrap" tabindex="0" aria-label="Prévia do sprite. No modo do jogo, as setas para cima e para baixo sobem e descem a carroceria.">
             <canvas id="scene" width="160" height="90" role="img" aria-label="Prévia animada do sprite do carro"></canvas>
             <canvas id="guide" hidden aria-hidden="true"></canvas>
           </div>
@@ -206,6 +207,7 @@
           <button type="button" class="btn primary" id="addGarage">Adicionar este carro</button>
           <button type="button" class="btn" id="variants">Gerar 6 cores</button>
           <button type="button" class="btn" id="sheet" disabled>Salvar folha PNG</button>
+          <button type="button" class="btn" id="packGame" disabled>Carros do jogo (.zip)</button>
           <button type="button" class="btn" id="clearGarage" disabled>Esvaziar</button>
         </div>
         <div class="seg" role="group" aria-label="Arranjo da folha">
@@ -213,7 +215,7 @@
           <button type="button" class="btn" data-group="layout" data-value="row" data-noai aria-pressed="false">Lado a lado</button>
         </div>
         <ul class="garage" id="garage"></ul>
-        <p class="note" id="garageNote">Gere um carro, clique em Adicionar e repita com outras fotos. A folha junta todos em um PNG, como na sua referência. Ela usa o tamanho e o cenário escolhidos em Exportar. Gerar 6 cores cria variações de tinta do carro atual.</p>
+        <p class="note" id="garageNote">Gere um carro, clique em Adicionar e repita com outras fotos. A folha junta todos em um PNG, como na sua referência. Ela usa o tamanho e o cenário escolhidos em Exportar. Gerar 6 cores cria variações de tinta do carro atual. No modo do jogo, cada carro adicionado guarda o nome do arquivo (carro-NN-nome.png) e "Carros do jogo (.zip)" junta todos prontos para a pasta do Racha de Rua.</p>
         <p class="note" id="garageStatus" role="status" aria-live="polite"></p>
       </section>
     </section>
@@ -286,6 +288,13 @@
               <div class="btns"><button type="button" class="btn primary" id="exportGame">Exportar para o Racha de Rua</button></div>
               <p class="note" id="gameExportInfo"></p>
               <p class="note" id="gameStatus" role="status" aria-live="polite"></p>
+              <p class="sub">Projeto</p>
+              <div class="btns">
+                <button type="button" class="btn" id="projSave">Salvar ajustes (.json)</button>
+                <label class="btn" for="projFile">Carregar ajustes</label>
+                <input class="sr" type="file" id="projFile" accept=".json,application/json">
+              </div>
+              <p class="note">O arquivo guarda os ajustes de todos os carros e os retoques à mão, mas não a foto. Carregue a foto de novo e depois os ajustes.</p>
             </div>
           </div>
         </div>
@@ -743,7 +752,7 @@
     var id = g.getImageData(0, 0, cw, ch);
     source = { w: cw, h: ch, data: id.data };
     sourceId++; prepKey = ''; wheelsManual = false;
-    editsByCar = {}; undoStack = []; redoStack = []; baseKey = '';
+    editsByCar = {}; undoStack = []; redoStack = []; baseKey = ''; carSettings = {};
     state.seed = null; picking = false; refreshPickUi();
     origC.width = cw; origC.height = ch;
     origC.getContext('2d').putImageData(id, 0, 0);
@@ -1060,8 +1069,12 @@
     $('exportGame').textContent = 'Exportar para o Racha de Rua';
   }
   $('carSel').addEventListener('change', function () {
+    var prev = gameCar();
+    if (prev) carSettings[prev.id] = pickPerCar();
     state.car = this.value;
     var car = gameCar();
+    if (car && carSettings[car.id]) applyPerCar(carSettings[car.id]);
+    writeInputs();
     state.gname = car ? car.file : '';
     undoStack = []; redoStack = [];
     syncGame(); schedule();
@@ -1093,6 +1106,95 @@
     job('Gerando ' + name, function () {
       return canvasToBlob(scaleCanvas(toCanvas(res.img), state.scale)).then(function (b) { return { data: b, name: name, type: 'image/png' }; });
     });
+  });
+  /* ---------- ajustes por carro e arquivo de projeto ---------- */
+  var PER_CAR = ['bodyDY', 'bodyScaleY', 'hue', 'rearX', 'frontX', 'wheelR'], carSettings = {}, PROJECT_KEYS = Object.keys(DEFAULTS).filter(function (k) { return k !== 'seed'; });
+  function pickPerCar() { var o = {}; PER_CAR.forEach(function (k) { o[k] = state[k]; }); return o; }
+  function inputRange(k) {
+    var el = document.querySelector('[data-k="' + k + '"]');
+    return el && el.type === 'range' ? [parseFloat(el.min), parseFloat(el.max)] : null;
+  }
+  function cleanNumber(k, v) {
+    v = Number(v);
+    if (!isFinite(v)) return null;
+    var r = inputRange(k);
+    return r ? clamp(v, r[0], r[1]) : v;
+  }
+  function groupValues(k) {
+    return Array.prototype.map.call(document.querySelectorAll('[data-group="' + k + '"]'), function (b) { return b.getAttribute('data-value'); });
+  }
+  function applyPerCar(o) {
+    PER_CAR.forEach(function (k) { if (o && o[k] != null) { var v = cleanNumber(k, o[k]); if (v != null) state[k] = v; } });
+    if (o && (o.rearX != null || o.frontX != null || o.wheelR != null)) wheelsManual = true;
+  }
+  function buildProject() {
+    var st = {}, edits = {};
+    PROJECT_KEYS.forEach(function (k) { st[k] = state[k]; });
+    var per = JSON.parse(JSON.stringify(carSettings));
+    var cur = gameCar(); if (cur) per[cur.id] = pickPerCar();
+    Object.keys(editsByCar).forEach(function (id) { if (editsByCar[id].size) edits[id] = Array.from(editsByCar[id].values()); });
+    return { app: 'garagem-pixel', version: 1, car: state.car, state: st, perCar: per, edits: edits };
+  }
+  function importProject(obj) {
+    if (!obj || obj.app !== 'garagem-pixel' || typeof obj.state !== 'object' || !obj.state) throw new Error('not a project');
+    var skipped = 0;
+    PROJECT_KEYS.forEach(function (k) {
+      if (!(k in obj.state)) return;
+      var v = obj.state[k], def = DEFAULTS[k];
+      if (k === 'car') { if (v === 'livre' || RC.carById(v)) state.car = v; else skipped++; }
+      else if (typeof def === 'boolean') state[k] = !!v;
+      else if (typeof def === 'number') {
+        var n = cleanNumber(k, v), gv = groupValues(k);
+        if (n == null || (gv.length && gv.indexOf(String(n)) < 0)) skipped++; else state[k] = n;
+      }
+      else if (k === 'fname' || k === 'gname') state[k] = String(v).replace(/[\u0000-\u001f]/g, '').slice(0, 60);
+      else {
+        var allowed = groupValues(k);
+        if (allowed.length && allowed.indexOf(String(v)) < 0) skipped++; else state[k] = String(v);
+      }
+    });
+    carSettings = {}; editsByCar = {}; undoStack = []; redoStack = []; baseKey = '';
+    if (obj.perCar && typeof obj.perCar === 'object') Object.keys(obj.perCar).forEach(function (id) {
+      if (!RC.carById(id)) { skipped++; return; }
+      var o = {}; PER_CAR.forEach(function (k) { if (obj.perCar[id] && obj.perCar[id][k] != null) { var n = cleanNumber(k, obj.perCar[id][k]); if (n != null) o[k] = n; } });
+      carSettings[id] = o;
+    });
+    var edited = 0;
+    if (obj.edits && typeof obj.edits === 'object') Object.keys(obj.edits).forEach(function (id) {
+      var car = RC.carById(id); if (!car || !Array.isArray(obj.edits[id])) { skipped++; return; }
+      var m = new Map();
+      obj.edits[id].slice(0, 20000).forEach(function (e) {
+        if (!Array.isArray(e) || e.length < 6) { skipped++; return; }
+        var x = e[0] | 0, y = e[1] | 0;
+        if (x !== e[0] || y !== e[1] || x < 0 || y < 0 || x >= car.w || y >= car.h) { skipped++; return; }
+        var c = [x, y, clamp(e[2] | 0, 0, 255), clamp(e[3] | 0, 0, 255), clamp(e[4] | 0, 0, 255), e[5] ? 255 : 0];
+        m.set(x + ',' + y, c); edited++;
+      });
+      if (m.size) editsByCar[id] = m;
+    });
+    var cur = gameCar(); if (cur && carSettings[cur.id]) applyPerCar(carSettings[cur.id]);
+    writeInputs(); syncGame(); schedule();
+    return { skipped: skipped, edited: edited };
+  }
+  $('projSave').addEventListener('click', function () {
+    if (busy) return;
+    setBusy(true); say('Gerando o arquivo de ajustes...');
+    var blob = new Blob([JSON.stringify(buildProject(), null, 1)], { type: 'application/json' });
+    saveData(blob, 'garagem-pixel-ajustes.json', 'application/json', function (name, msg) { setBusy(false); say(name ? 'Arquivo ' + name + ' salvo.' : msg); });
+  });
+  $('projFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; this.value = '';
+    if (!f) return;
+    if (f.size > 4000000) { say('Esse arquivo é grande demais para ser um arquivo de ajustes.'); return; }
+    f.text().then(function (t) {
+      var r = importProject(JSON.parse(t));
+      say('Ajustes carregados.' + (r.edited ? ' ' + r.edited + ' retoque(s).' : '') + (r.skipped ? ' ' + r.skipped + ' item(ns) inválido(s) foram ignorados.' : ''));
+    }).catch(function () { say('Não consegui ler esse arquivo. Ele precisa ser um arquivo de ajustes salvo por esta página.'); });
+  });
+  $('sceneWrap').addEventListener('keydown', function (e) {
+    if (!gameCar() || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowUp') { e.preventDefault(); nudge(1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); nudge(-1); }
   });
   // pixel under the mouse
   $('sceneWrap').addEventListener('pointermove', function (e) {
@@ -1365,10 +1467,12 @@
   }
   function setBusy(v) {
     busy = v;
-    ['save', 'copy', 'show', 'saveSheet', 'saveGif', 'saveBody', 'saveWheel', 'savePack', 'sheet', 'exportGame'].forEach(function (id) {
+    ['save', 'copy', 'show', 'saveSheet', 'saveGif', 'saveBody', 'saveWheel', 'savePack', 'sheet', 'exportGame', 'packGame'].forEach(function (id) {
       var b = $(id);
       if (!b) return;
-      if (id === 'sheet') b.disabled = v || !garage.length; else b.disabled = v;
+      if (id === 'sheet') b.disabled = v || !garage.length;
+      else if (id === 'packGame') b.disabled = v || !garage.some(function (g) { return g.file; });
+      else b.disabled = v;
     });
   }
   // Runs one export job: builds the bytes, saves them, reports in the status line.
@@ -1490,7 +1594,8 @@
     var ul = $('garage'); ul.textContent = '';
     garage.forEach(function (it, idx) {
       var li = document.createElement('li'), img = new Image();
-      img.src = it.url; img.alt = 'Carro ' + (idx + 1) + ' da garagem';
+      img.src = it.url; img.alt = it.file ? 'Carro ' + it.file : 'Carro ' + (idx + 1) + ' da garagem';
+      if (it.file) li.title = it.file;
       li.appendChild(img);
       var x = document.createElement('button');
       x.type = 'button'; x.className = 'x'; x.textContent = '×';
@@ -1503,19 +1608,23 @@
     });
     $('garageNote').hidden = garage.length > 0;
     $('sheet').disabled = busy || !garage.length;
+    $('packGame').disabled = busy || !garage.some(function (g) { return g.file; });
     $('clearGarage').disabled = !garage.length;
     $('garageCount').textContent = garage.length ? garage.length + (garage.length === 1 ? ' carro' : ' carros') : '';
   }
-  function pushGarage(im) {
+  function pushGarage(im, meta) {
     var c = toCanvas(im);
-    garage.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: c.toDataURL('image/png'), w: c.width, h: c.height });
+    if (meta) garage = garage.filter(function (g) { return g.car !== meta.car; });
+    var item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), url: c.toDataURL('image/png'), w: c.width, h: c.height };
+    if (meta) { item.car = meta.car; item.file = meta.file; }
+    garage.push(item);
     var dropped = false;
     while (garage.length > GARAGE_MAX) { garage.shift(); dropped = true; }
     return dropped;
   }
   $('addGarage').addEventListener('click', function () {
     if (!stat) return;
-    var dropped = pushGarage(stat.img);
+    var gc = gameCar(), dropped = pushGarage(stat.img, gc ? { car: gc.id, file: gameFileName() } : null);
     saveGarage(); renderGarage();
     sayGarage(dropped ? 'Carro adicionado. A garagem guarda até ' + GARAGE_MAX + ', então o mais antigo saiu.' : 'Carro adicionado à garagem.');
   });
@@ -1531,6 +1640,21 @@
     });
     saveGarage(); renderGarage();
     sayGarage(dropped ? '6 cores novas adicionadas. Os carros mais antigos saíram para caber.' : '6 cores novas adicionadas à garagem.');
+  });
+  function dataUrlBytes(u) {
+    var bin = atob(u.slice(u.indexOf(',') + 1)), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  $('packGame').addEventListener('click', function () {
+    if (busy) return;
+    var list = garage.filter(function (g) { return g.file; });
+    if (!list.length) return;
+    var seen = {}, files = [];
+    list.forEach(function (g) { if (!seen[g.file]) { seen[g.file] = 1; files.push({ name: g.file, data: dataUrlBytes(g.url) }); } });
+    files.push({ name: 'LEIAME.txt', data: E.utf8('Carros do Racha de Rua gerados na Garagem Pixel.\r\n\r\nColoque os PNG em racha-de-rua/imagens/carros/ (substituindo os de mesmo nome) e rode: node build.js\r\n') });
+    setBusy(true); say('Montando o pacote...');
+    saveData(E.zipStore(files), 'racha-de-rua-carros.zip', 'application/zip', function (name, msg) { setBusy(false); sayGarage(name ? 'Pacote ' + name + ' salvo com ' + (files.length - 1) + ' carro(s).' : msg); renderGarage(); });
   });
   $('clearGarage').addEventListener('click', function () { garage = []; saveGarage(); renderGarage(); sayGarage('Garagem vazia.'); });
   function buildSheet() {

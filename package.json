@@ -6,7 +6,7 @@
   "scripts": {
     "build": "python3 build.py dist/garagem-pixel.html",
     "test": "node test_pipeline.js dist/out && node test_racha.js dist/out",
-    "test:e2e": "npm run build && node tests/e2e/flow3.js $PWD/dist && node tests/e2e/flow_racha.js $PWD/dist && node tests/e2e/editor.js $PWD/dist",
+    "test:e2e": "npm run build && node tests/e2e/flow3.js $PWD/dist && node tests/e2e/flow_racha.js $PWD/dist && node tests/e2e/editor.js $PWD/dist && node tests/e2e/project.js $PWD/dist && node tests/e2e/garage_game.js $PWD/dist",
     "check": "npm run build && npm test"
   },
   "devDependencies": {

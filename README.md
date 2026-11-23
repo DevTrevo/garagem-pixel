@@ -12,6 +12,12 @@ Arquivo único, sem servidor: a página final é um só `garagem-pixel.html`.
 - **Modo Racha de Rua**: escolhe um dos 19 carros da tabela do jogo, encaixa as rodas da foto nos centros da tabela,
   abre as caixas de roda (#0b0a14), separa a cor da lataria em um só matiz, mostra a guia (chão, raio 11 e 13),
   confere o resultado e exporta `carro-NN-nome.png`.
+- **Editor de pixels** no modo jogo: pincel, borracha, conta-gotas, paleta clicável, desfazer/refazer (Ctrl+Z / Ctrl+Y).
+  Cada retoque reavalia a conferência (pintar dentro da roda, por exemplo, vira aviso).
+- **Altura do carro**: botões ▲ ▼, controle deslizante e setas do teclado (com o foco na prévia) sobem e descem a carroceria em relação às rodas.
+- **Ajustes por carro**: cada carro da tabela lembra a própria altura, cor e posição das rodas durante a sessão.
+- **Arquivo de ajustes** (`.json`): salva e carrega os ajustes de todos os carros e os retoques (sem a foto).
+- **Garagem do jogo**: "Carros do jogo (.zip)" junta os carros adicionados com os nomes certos, prontos para `racha-de-rua/imagens/carros/`.
 
 ## Estrutura
 ```
@@ -29,7 +35,7 @@ tests/e2e/        testes de navegador (Playwright)
 npm run build        # gera dist/garagem-pixel.html
 npm test             # testes em Node
 npm install && npx playwright install chromium
-npm run test:e2e     # testes de navegador (CHROME_PATH aponta um Chrome já instalado, se preferir)
+npm run test:e2e     # testes de navegador (fluxo geral, modo jogo, editor, projeto, garagem) (CHROME_PATH aponta um Chrome já instalado, se preferir)
 ```
 
 Abra `dist/garagem-pixel.html` no navegador. Fora do Claude, o botão de download usa o fallback de "Mostrar imagem"
