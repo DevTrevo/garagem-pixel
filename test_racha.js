@@ -230,6 +230,28 @@ check('check flags opaque pixel inside a wheel circle', R.check(dirty).find(c =>
   check('neutral ' + name + ' car has no paint hue', r.paint.hue == null);
 });
 
+// ---- retoque manual ----
+(function () {
+  const car = R.carById('15'), b0 = R.render(prepared, car, opts);
+  const same = R.applyEdits(b0, []);
+  check('no edits keeps the image identical', Buffer.compare(Buffer.from(same.img.data), Buffer.from(b0.img.data)) === 0 && !same.edited);
+  const x = 60, y = 14, i = (y * car.w + x) * 4;
+  const painted = R.applyEdits(b0, [[x, y, 10, 200, 30, 255]]);
+  check('a painted pixel takes the colour and is opaque', painted.img.data[i] === 10 && painted.img.data[i + 1] === 200 && painted.img.data[i + 3] === 255);
+  check('painting does not touch the base result', b0.img.data[i] !== 10 || b0.img.data[i + 1] !== 200);
+  check('edit count shows as an info line', painted.checks.some(c => c.id === 'edits' && c.level === 'info'));
+  const erased = R.applyEdits(b0, [[x, y, 0, 0, 0, 0]]);
+  check('eraser makes the pixel transparent', erased.img.data[i + 3] === 0);
+  const last = R.applyEdits(b0, [[x, y, 1, 2, 3, 255], [x, y, 9, 8, 7, 255]]);
+  check('the last edit of a pixel wins', last.img.data[i] === 9 && last.img.data[i + 1] === 8);
+  const inWheel = R.applyEdits(b0, [[car.rear[0], car.rear[1], 200, 200, 200, 255]]);
+  check('painting inside a wheel circle raises a warning', inWheel.checks.find(c => c.id === 'wells').level === 'warn');
+  const green = R.applyEdits(b0, [[x, y, 30, 220, 40, 255]]);
+  check('palette includes a new colour', green.palette.length >= b0.palette.length);
+  const out = R.applyEdits(b0, [[-1, 3, 1, 1, 1, 255], [999, 3, 1, 1, 1, 255]]);
+  check('edits outside the sprite are ignored', Buffer.compare(Buffer.from(out.img.data), Buffer.from(b0.img.data)) === 0);
+})();
+
 // ---- imagens para olhar ----
 fs.mkdirSync(outDir, { recursive: true });
 function guideOn(res, k) {

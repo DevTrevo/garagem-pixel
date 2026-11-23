@@ -293,13 +293,32 @@
     var low = 0;
     for (y = car.ground - CLEAR; y < H; y++) for (x = Math.ceil(car.rear[0] + WELL_OUT); x < car.front[0] - WELL_OUT; x++) if (d[(y * W + x) * 4 + 3] > 0) low++;
     list.push({ id: 'clear', level: low ? 'warn' : 'ok', text: low ? 'A carroceria desce abaixo de 7 px do chão entre as rodas.' : 'Folga de 7 px do chão entre as rodas.' + (res.trimmed ? ' (' + res.trimmed + ' px do assoalho foram aparados.)' : '') });
+    if (res.edited) list.push({ id: 'edits', level: 'info', text: res.edited + ' pixel(s) retocado(s) à mão.' });
     var pr = res.paint;
     if (pr.hue == null) list.push({ id: 'paint', level: 'info', text: 'Lataria neutra (cinza, preto ou branco): não há matiz para separar.' });
     else list.push({ id: 'paint', level: pr.offenders ? 'warn' : 'ok', text: 'Lataria em um só matiz (' + Math.round(pr.hue) + '°) com ' + pr.tones + ' tons.' + (pr.offenders ? ' ' + pr.offenders + ' pixels de outras partes têm matiz parecido.' : ' Vidros, cromados e luzes ficam fora desse matiz.') });
     return list;
   }
 
-  var api = { CARS: CARS, carById: carById, slug: slug, render: render, check: check, place: place, separatePaint: separatePaint,
+  // Retoques à mão: lista de [x, y, r, g, b, a]. a = 0 apaga o pixel. O último retoque de cada pixel vale.
+  // Reavalia paleta, lataria e conferência, então pintar dentro da roda, por exemplo, aparece como aviso.
+  function applyEdits(base, edits) {
+    var img = P.cloneImage(base.img), n = 0;
+    (edits || []).forEach(function (e) {
+      var x = e[0], y = e[1];
+      if (x < 0 || y < 0 || x >= img.w || y >= img.h) return;
+      var i = (y * img.w + x) * 4;
+      if (e[5] === 0) { img.data[i] = img.data[i + 1] = img.data[i + 2] = img.data[i + 3] = 0; }
+      else { img.data[i] = e[2]; img.data[i + 1] = e[3]; img.data[i + 2] = e[4]; img.data[i + 3] = 255; }
+      n++;
+    });
+    var res = { img: img, car: base.car, palette: uniqueColors(img), clip: base.clip, trimmed: base.trimmed,
+      paint: paintReport(img, base.paint.hue), opts: base.opts, edited: n };
+    res.checks = check(res);
+    return res;
+  }
+
+  var api = { applyEdits: applyEdits, uniqueColors: uniqueColors, CARS: CARS, carById: carById, slug: slug, render: render, check: check, place: place, separatePaint: separatePaint,
     DEFAULTS: DEFAULTS, WHEEL_R: WHEEL_R, WELL_IN: WELL_IN, WELL_OUT: WELL_OUT, CLEAR: CLEAR, WELL_COLOR: WELL_COLOR };
   if (root.PixelCar) root.PixelCar.Racha = api;
   root.PixelRacha = api;

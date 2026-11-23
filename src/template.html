@@ -134,6 +134,10 @@
   .garage .x:hover { border-color: var(--accent); }
   .scene-wrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; }
   #guide { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .scene-wrap.editing { cursor: crosshair; touch-action: none; }
+  button.sw { padding: 0; cursor: pointer; background-clip: padding-box; }
+  button.sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=color] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); cursor: pointer; }
   .stage.zoomed { display: block; overflow-x: auto; }
   .stage.zoomed .scene-wrap { display: block; width: max-content; max-width: none; margin: 0 auto; }
   .is-game [data-nogame] { display: none !important; }
@@ -257,6 +261,24 @@
               <label class="row"><span>Altura total do carro</span><output data-o="bodyScaleY"></output>
                 <input type="range" data-k="bodyScaleY" data-noai min="70" max="110" step="1" value="100"></label>
               <p class="note">As rodas da foto são encaixadas nos centros da tabela. Se o carro ficou baixo na caixa de roda, suba a carroceria; se ficou alto demais, reduza a altura total.</p>
+              <p class="sub">Retocar pixels</p>
+              <div class="seg" role="group" aria-label="Ferramenta de retoque">
+                <button type="button" class="btn" data-group="tool" data-noai data-value="off" aria-pressed="true">Desligado</button>
+                <button type="button" class="btn" data-group="tool" data-noai data-value="brush" aria-pressed="false">Pincel</button>
+                <button type="button" class="btn" data-group="tool" data-noai data-value="erase" aria-pressed="false">Borracha</button>
+                <button type="button" class="btn" data-group="tool" data-noai data-value="pick" aria-pressed="false">Conta-gotas</button>
+              </div>
+              <div class="nudge">
+                <label for="brushColor">Cor do pincel</label>
+                <input type="color" id="brushColor" value="#c01820">
+                <span class="meta">ou clique numa cor da paleta</span>
+              </div>
+              <div class="btns">
+                <button type="button" class="btn" id="edUndo" disabled>Desfazer</button>
+                <button type="button" class="btn" id="edRedo" disabled>Refazer</button>
+                <button type="button" class="btn" id="edClear" disabled>Limpar retoques</button>
+              </div>
+              <p class="note" id="editInfo">Ligue o pincel e clique ou arraste sobre o carro. Ctrl+Z desfaz. A conferência avisa se um retoque quebrar uma regra do jogo.</p>
               <p class="sub">Conferência</p>
               <ul class="checks" id="gameChecks" aria-live="polite"></ul>
               <label class="field"><span>Nome do arquivo</span>
@@ -536,9 +558,9 @@
     anim: true, frames: 8, fps: 10, spinOn: true, spin: 1, bob: true, exhaust: false, dust: false, speedlines: false, beam: false,
     neon: false, neonColor: 'pink', scroll: true,
     bg: 'scene', scale: 4, withScene: false, layout: 'stack', fname: 'carro-pixel',
-    car: 'livre', guide: true, zoom: 'auto', gname: '', bodyDY: 0, bodyScaleY: 100
+    tool: 'off', car: 'livre', guide: true, zoom: 'auto', gname: '', bodyDY: 0, bodyScaleY: 100
   };
-  var KEEP_ON_RESET = ['flip', 'bg', 'scale', 'withScene', 'layout', 'fname', 'anim', 'car', 'guide', 'zoom', 'gname'];
+  var KEEP_ON_RESET = ['flip', 'bg', 'scale', 'withScene', 'layout', 'fname', 'anim', 'car', 'guide', 'zoom', 'gname', 'tool'];
   var PRESETS = {
     padrao: { width: 128, colors: 12, palette: 'auto', dither: 0, sat: 1.15, contrast: 1.1, sharpen: 0.25, clean: 1, rimlight: 0.5 },
     arcade: { width: 96, colors: 10, palette: 'auto', dither: 0, sat: 1.25, contrast: 1.15, sharpen: 0.35, clean: 1, rimlight: 0.6 },
@@ -632,6 +654,7 @@
     bg: function () { drawStage(); updateExportInfo(); },
     scale: function () { updateExportInfo(); },
     zoom: function () { fit(); updateInfo(); },
+    tool: function () { updateEditUi(); },
     layout: function () {}
   };
   document.querySelectorAll('[data-group]').forEach(function (b) {
@@ -720,6 +743,7 @@
     var id = g.getImageData(0, 0, cw, ch);
     source = { w: cw, h: ch, data: id.data };
     sourceId++; prepKey = ''; wheelsManual = false;
+    editsByCar = {}; undoStack = []; redoStack = []; baseKey = '';
     state.seed = null; picking = false; refreshPickUi();
     origC.width = cw; origC.height = ch;
     origC.getContext('2d').putImageData(id, 0, 0);
@@ -869,8 +893,15 @@
       rearX: state.rearX / 100, frontX: state.frontX / 100, wheelR: state.wheelR / 100, bodyDY: state.bodyDY, bodyScaleY: state.bodyScaleY
     };
   }
+  var editsByCar = {}, undoStack = [], redoStack = [], baseRes = null, baseKey = '', stroke = null, brush = [192, 24, 32];
+  function carEdits(car) { return editsByCar[car.id] || (editsByCar[car.id] = new Map()); }
   function runGame(car) {
-    gameRes = RC.render(prepared, car, gameOpts());
+    var key = [sourceId, prepKey, car.id, JSON.stringify(gameOpts())].join('|');
+    if (key !== baseKey || !baseRes) { baseRes = RC.render(prepared, car, gameOpts()); baseKey = key; }
+    showGame(car);
+  }
+  function showGame(car) {
+    gameRes = RC.applyEdits(baseRes, Array.from(carEdits(car).values()));
     var im = gameRes.img;
     stat = {
       img: im,
@@ -881,8 +912,104 @@
     };
     seq = [stat]; fi = 0;
     resetGameConfirm();
-    drawStage(); drawPalette(); updateExportInfo(); renderChecks(); updateInfo();
+    drawStage(); drawPalette(); updateExportInfo(); renderChecks(); updateInfo(); updateEditUi();
   }
+  function hex2(c) { return '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
+  function updateEditUi() {
+    var car = gameCar(), on = !!car && state.tool !== 'off';
+    $('sceneWrap').classList.toggle('editing', on);
+    if (!car) return;
+    var n = carEdits(car).size;
+    $('edUndo').disabled = !undoStack.length; $('edRedo').disabled = !redoStack.length; $('edClear').disabled = !n;
+    $('editInfo').textContent = (n ? n + ' pixel(s) retocado(s) neste carro. ' : '') +
+      (state.tool === 'pick' ? 'Clique num pixel para pegar a cor.' : on ? 'Clique ou arraste sobre o carro. Ctrl+Z desfaz.' : 'Ligue o pincel e clique ou arraste sobre o carro. Ctrl+Z desfaz.');
+  }
+  function pixelAt(e) {
+    var car = gameCar(); if (!car || !stat) return null;
+    var r = scene.getBoundingClientRect(), k = r.width / scene.width, gm = sceneGeom(stat.geom, state.bg === 'scene');
+    var x = Math.floor((e.clientX - r.left) / k - gm.mx), y = Math.floor((e.clientY - r.top) / k - gm.top);
+    return (x >= 0 && y >= 0 && x < car.w && y < car.h) ? [x, y] : null;
+  }
+  function paintAt(car, x, y) {
+    var key = x + ',' + y;
+    if (stroke.map.has(key)) return;
+    var m = carEdits(car);
+    var next = state.tool === 'erase' ? [x, y, 0, 0, 0, 0] : [x, y, brush[0], brush[1], brush[2], 255];
+    stroke.map.set(key, { key: key, prev: m.get(key), next: next });
+    m.set(key, next);
+  }
+  function line(car, a, b) {
+    var x0 = a[0], y0 = a[1], x1 = b[0], y1 = b[1], dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
+    for (;;) {
+      paintAt(car, x0, y0);
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  function setBrush(c) {
+    brush = c.slice(); $('brushColor').value = hex2(brush);
+  }
+  $('sceneWrap').addEventListener('pointerdown', function (e) {
+    var car = gameCar(); if (!car || state.tool === 'off' || e.button > 0) return;
+    var p = pixelAt(e); if (!p) return;
+    e.preventDefault();
+    if (state.tool === 'pick') {
+      var i = (p[1] * car.w + p[0]) * 4, d = gameRes.img.data;
+      if (d[i + 3]) { setBrush([d[i], d[i + 1], d[i + 2]]); state.tool = 'brush'; writeInputs(); updateEditUi(); }
+      return;
+    }
+    try { this.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    stroke = { map: new Map(), last: p };
+    paintAt(car, p[0], p[1]);
+    showGame(car);
+  });
+  $('sceneWrap').addEventListener('pointermove', function (e) {
+    if (!stroke) return;
+    var car = gameCar(), p = pixelAt(e); if (!car || !p) return;
+    if (p[0] === stroke.last[0] && p[1] === stroke.last[1]) return;
+    line(car, stroke.last, p); stroke.last = p;
+    showGame(car);
+  });
+  function endStroke() {
+    if (!stroke) return;
+    if (stroke.map.size) { undoStack.push(Array.from(stroke.map.values())); redoStack = []; if (undoStack.length > 200) undoStack.shift(); }
+    stroke = null; updateEditUi();
+  }
+  $('sceneWrap').addEventListener('pointerup', endStroke);
+  $('sceneWrap').addEventListener('pointercancel', endStroke);
+  function editUndo() {
+    var car = gameCar(), g = undoStack.pop(); if (!car || !g) return;
+    var m = carEdits(car);
+    g.forEach(function (c) { if (c.prev) m.set(c.key, c.prev); else m.delete(c.key); });
+    redoStack.push(g); showGame(car);
+  }
+  function editRedo() {
+    var car = gameCar(), g = redoStack.pop(); if (!car || !g) return;
+    var m = carEdits(car);
+    g.forEach(function (c) { m.set(c.key, c.next); });
+    undoStack.push(g); showGame(car);
+  }
+  $('edUndo').addEventListener('click', editUndo);
+  $('edRedo').addEventListener('click', editRedo);
+  $('edClear').addEventListener('click', function () {
+    var car = gameCar(); if (!car) return;
+    editsByCar[car.id] = new Map(); undoStack = []; redoStack = []; showGame(car);
+  });
+  $('brushColor').addEventListener('input', function () {
+    var v = this.value; brush = [parseInt(v.slice(1, 3), 16), parseInt(v.slice(3, 5), 16), parseInt(v.slice(5, 7), 16)];
+    if (state.tool === 'off' || state.tool === 'pick' || state.tool === 'erase') { state.tool = 'brush'; writeInputs(); }
+    updateEditUi();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!gameCar() || !(e.ctrlKey || e.metaKey)) return;
+    var t = e.target && e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+    var k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); editUndo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); editRedo(); }
+  });
   function updateInfo() {
     if (!stat) return;
     var car = gameCar();
@@ -922,6 +1049,7 @@
         (car.groundGap ? ' Atenção: nesta linha da tabela a base da roda (y ' + car.ground + ') fica ' + car.groundGap + ' px acima da última linha (' + car.h + '). Usei a base da roda como chão.' : '')
       : 'Escolha um carro para gerar o sprite no tamanho exato do jogo, sem rodas, com as caixas de roda abertas.';
     gameInfoLine();
+    updateEditUi();
   }
   function gameInfoLine() {
     var car = gameCar();
@@ -935,6 +1063,7 @@
     state.car = this.value;
     var car = gameCar();
     state.gname = car ? car.file : '';
+    undoStack = []; redoStack = [];
     syncGame(); schedule();
   });
   $('gname').addEventListener('input', function () { state.gname = this.value; gameInfoLine(); });
@@ -1129,10 +1258,14 @@
   function drawPalette() {
     var pal = $('pal'); pal.textContent = '';
     (gameRes ? gameRes.palette : body.palette).forEach(function (c) {
-      var s = document.createElement('span');
+      var s = document.createElement(gameRes ? 'button' : 'span');
       s.className = 'sw';
       var hex = '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
       s.style.background = hex; s.title = hex;
+      if (gameRes) {
+        s.type = 'button'; s.setAttribute('aria-label', 'Usar a cor ' + hex + ' no pincel');
+        s.addEventListener('click', function () { setBrush(c); if (state.tool === 'off' || state.tool === 'pick' || state.tool === 'erase') { state.tool = 'brush'; writeInputs(); } updateEditUi(); });
+      }
       pal.appendChild(s);
     });
   }

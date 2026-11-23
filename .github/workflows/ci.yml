@@ -18,6 +18,7 @@ jobs:
       - run: |
           node tests/e2e/flow3.js "$PWD/dist"
           node tests/e2e/flow_racha.js "$PWD/dist"
+          node tests/e2e/editor.js "$PWD/dist"
       - uses: actions/upload-artifact@v4
         with:
           name: garagem-pixel
