@@ -68,4 +68,5 @@ Aba "Editor de sprites" no topo da página: uma grade de pixels para desenhar do
 - Estrutura (camadas, frames, tamanho) também entra no desfazer.
 - Código: `src/sprite.js` (modelo de projeto e histórico), `src/editor_ui.js` (interface do editor, inlinada no módulo principal).
 - Guia do Racha de Rua: escolha um carro da tabela e o editor mostra por cima do desenho o chão, a folga de 7 px, as rodas e as caixas de roda, com conferência (tamanho, rodas vazias, fundo, folga e cor do anel). "Ajustar a tela ao carro" muda o tamanho. Enviar para a garagem com o tamanho certo coloca o sprite no pacote .zip do jogo.
-- Próximas etapas planejadas: selecionar e mover, pincéis maiores.
+- Seleção (M): arraste para marcar uma área; arrastar dentro dela move (Alt copia); setas movem 1 px (Shift, 8 px); Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+A, Delete e Esc; espelhar a área. A área copiada pode ser colada em outro frame ou camada. Sem seleção, as setas movem a camada inteira. Desfazer e refazer desmarcam a seleção.
+- Próximas etapas planejadas: pincéis maiores, prévia em tamanho real.

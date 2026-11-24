@@ -5,7 +5,7 @@
     P: SP.project(64, 48), f: 0, l: 0, hist: SP.projHistory(120),
     tool: 'pencil', color: [239, 125, 87], zoom: 'auto', z: 8, grid: true, onion: false, scale: 1,
     pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0,
-    playing: false, playTimer: 0, playF: 0, car: ''
+    playing: false, playTimer: 0, playF: 0, car: '', sel: null, clip: null
   };
   var ED_KEY = 'garagem-pixel-editor-v2', ED_KEY_V1 = 'garagem-pixel-editor-v1';
   var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas'), edBuf2 = document.createElement('canvas');
@@ -90,7 +90,7 @@
   }
   function edClampSel() { ed.f = clamp(ed.f, 0, ed.P.frames.length - 1); ed.l = clamp(ed.l, 0, ed.P.layers.length - 1); }
   function edSetProject(P, keepHist) {
-    edStop();
+    edStop(); ed.sel = null;
     ed.P = P; ed.f = 0; ed.l = P.layers.length - 1;
     if (!keepHist) ed.hist.clear();
     $('edW').value = P.w; $('edH').value = P.h; $('edFps').value = P.fps;
@@ -98,7 +98,7 @@
   }
   // Mudança de estrutura (camadas, frames, tamanho): guarda foto antes e depois para desfazer.
   function edStruct(fn, msg) {
-    edStop();
+    edStop(); ed.sel = null;
     var before = SP.cloneProject(ed.P), r = fn();
     if (r === false) return false;
     ed.hist.pushProj(before, SP.cloneProject(ed.P));
@@ -143,6 +143,16 @@
       for (var y = 1; y < h; y++) g.fillRect(0, y * z, w * z, 1);
     }
     drawCarGuide(g, z);
+    drawSel(g, z);
+  }
+  function drawSel(g, z) {
+    var s = ed.sel;
+    if (!s) return;
+    var x = s.x0 * z + 0.5, y = s.y0 * z + 0.5, w = (s.x1 - s.x0 + 1) * z - 1, h = (s.y1 - s.y0 + 1) * z - 1;
+    g.save(); g.lineWidth = 1.5;
+    g.setLineDash([5, 5]); g.strokeStyle = '#000'; g.strokeRect(x, y, w, h);
+    g.lineDashOffset = 5; g.strokeStyle = '#fff'; g.strokeRect(x, y, w, h);
+    g.restore();
   }
   // Guia do Racha de Rua: chão, folga sob a carroceria, círculo da roda e anel da caixa de roda.
   function drawCarGuide(g, z) {
@@ -251,7 +261,7 @@
     edPalette(); edUsedPalette();
   }
   function edSetTool(t) {
-    ed.tool = t;
+    ed.tool = t; edCanvas.style.cursor = 'crosshair';
     document.querySelectorAll('[data-etool]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-etool') === t)); });
   }
 
@@ -359,7 +369,18 @@
       else edSay('Esse pixel está vazio.');
       return;
     }
-    if (!ed.P.layers[ed.l].visible) { ed.P.layers[ed.l].visible = true; renderLayers(); edSay('A camada estava escondida, então eu a mostrei.'); }
+    if (ed.tool === 'select') {
+      var inSel = ed.sel && p[0] >= ed.sel.x0 && p[0] <= ed.sel.x1 && p[1] >= ed.sel.y0 && p[1] <= ed.sel.y1;
+      try { edCanvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+      if (inSel && ev.button === 0) {
+        ensureVisible();
+        ed.drag = { tool: 'select', mode: 'move', before: SP.clone(cel()), start: p, f: ed.f, l: ed.l, rect: { x0: ed.sel.x0, y0: ed.sel.y0, x1: ed.sel.x1, y1: ed.sel.y1 }, clip: SP.extract(cel(), ed.sel), copy: ev.altKey };
+      } else {
+        ed.drag = { tool: 'select', mode: 'new', start: p, f: ed.f, l: ed.l, moved: false };
+      }
+      return;
+    }
+    ensureVisible();
     try { edCanvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
     ed.drag = { before: SP.clone(cel()), start: p, col: col, tool: ed.tool, f: ed.f, l: ed.l };
     ed.last = p;
@@ -370,6 +391,9 @@
     }
     if (ed.tool === 'pencil' || ed.tool === 'eraser') stamp(p[0], p[1], col);
     edDraw();
+  }
+  function ensureVisible() {
+    if (!ed.P.layers[ed.l].visible) { ed.P.layers[ed.l].visible = true; renderLayers(); edSay('A camada estava escondida, então eu a mostrei.'); }
   }
   function edShape(a, b) {
     var d = ed.drag, fill = $('edFill').checked;
@@ -385,8 +409,29 @@
       var c = SP.get(edFrameImg(), p[0], p[1]);
       $('edPos').textContent = 'x ' + p[0] + ' · y ' + p[1] + (c[3] ? ' · ' + SP.toHex(c) : ' · vazio');
     }
-    if (!ed.drag) return;
+    if (!ed.drag) {
+      if (ed.tool === 'select') {
+        var s0 = ed.sel;
+        edCanvas.style.cursor = s0 && p[0] >= s0.x0 && p[0] <= s0.x1 && p[1] >= s0.y0 && p[1] <= s0.y1 ? 'move' : 'crosshair';
+      }
+      return;
+    }
     var d = ed.drag;
+    if (d.tool === 'select') {
+      if (d.mode === 'new') {
+        var cx = clamp(p[0], 0, ed.P.w - 1), cy = clamp(p[1], 0, ed.P.h - 1);
+        if (cx !== d.start[0] || cy !== d.start[1]) d.moved = true;
+        ed.sel = SP.normRect(d.start[0], d.start[1], cx, cy);
+      } else {
+        var dx = p[0] - d.start[0], dy = p[1] - d.start[1], r = d.rect;
+        cel().data.set(d.before.data);
+        if (!d.copy) SP.clearRect(cel(), r);
+        SP.blit(cel(), d.clip, r.x0 + dx, r.y0 + dy);
+        ed.sel = { x0: r.x0 + dx, y0: r.y0 + dy, x1: r.x1 + dx, y1: r.y1 + dy };
+      }
+      drawGrid(); edDraw();
+      return;
+    }
     if (d.tool === 'pencil' || d.tool === 'eraser') {
       SP.line(ed.last[0], ed.last[1], p[0], p[1], function (x, y) { stamp(x, y, d.col); });
       ed.last = p;
@@ -398,9 +443,14 @@
   function edEnd() {
     if (!ed.drag) return;
     var d = ed.drag; ed.drag = null;
+    if (d.tool === 'select' && d.mode === 'new') {
+      if (!d.moved) ed.sel = null;
+      drawGrid(); selUi();
+      return;
+    }
     var entry = SP.diff(d.before, ed.P.frames[d.f].cels[d.l]);
     if (entry) { ed.hist.pushPx(d.f, d.l, entry); edSaveSoon(); }
-    edRefresh();
+    edRefresh(); selUi();
   }
   edCanvas.addEventListener('pointerdown', edPointerDown);
   edCanvas.addEventListener('pointermove', edPointerMove);
@@ -409,11 +459,81 @@
   edCanvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   edCanvas.addEventListener('pointerleave', function () { if (!ed.drag) $('edPos').textContent = 'Passe o mouse sobre o desenho.'; });
 
+  // ---------- seleção: copiar, recortar, colar, apagar, espelhar, mover ----------
+  function selUi() {
+    var has = !!ed.sel;
+    ['selCopy', 'selCut', 'selDel', 'selFlipH', 'selFlipV'].forEach(function (id) { $(id).disabled = !has; });
+    $('selPaste').disabled = !ed.clip;
+    if (has) $('edPos').textContent = 'Seleção ' + (ed.sel.x1 - ed.sel.x0 + 1) + ' × ' + (ed.sel.y1 - ed.sel.y0 + 1) + ' px';
+  }
+  function selOp(fn, msg) {
+    ensureVisible();
+    var before = SP.clone(cel());
+    fn();
+    var e = SP.diff(before, cel());
+    if (e) { ed.hist.pushPx(ed.f, ed.l, e); edSaveSoon(); }
+    edRefresh(); drawGrid(); selUi();
+    if (msg) edSay(msg);
+  }
+  function selCopy(quiet) {
+    if (!ed.sel) { edSay('Selecione uma área com a ferramenta Selecionar (M).'); return false; }
+    var c = SP.extract(cel(), ed.sel);
+    if (!c) { edSay('A seleção está fora do desenho.'); return false; }
+    ed.clip = c; selUi();
+    if (!quiet) edSay('Copiado: ' + c.w + ' × ' + c.h + ' px. Use Colar em qualquer frame ou camada.');
+    return true;
+  }
+  function selCut() {
+    if (!selCopy(true)) return;
+    var r = ed.sel;
+    selOp(function () { SP.clearRect(cel(), r); }, 'Recortado. Use Colar para pôr em outro lugar.');
+  }
+  function selPaste() {
+    if (!ed.clip) { edSay('Nada copiado ainda.'); return; }
+    var x = ed.sel ? Math.max(0, ed.sel.x0) : 0, y = ed.sel ? Math.max(0, ed.sel.y0) : 0, c = ed.clip;
+    selOp(function () { SP.blit(cel(), c, x, y); });
+    ed.sel = { x0: x, y0: y, x1: x + c.w - 1, y1: y + c.h - 1 };
+    edSetTool('select'); drawGrid(); selUi();
+    edSay('Colado em (' + x + ', ' + y + '). Arraste para posicionar.');
+  }
+  function selDelete() {
+    if (!ed.sel) return;
+    var r = ed.sel;
+    selOp(function () { SP.clearRect(cel(), r); }, 'Área apagada.');
+  }
+  function selFlip(vertical) {
+    if (!ed.sel) return;
+    var r = ed.sel;
+    selOp(function () { SP.flipRect(cel(), r, vertical); }, vertical ? 'Área espelhada na vertical.' : 'Área espelhada na horizontal.');
+  }
+  // Com área selecionada move a área; sem seleção, move a camada inteira neste frame.
+  function selNudge(dx, dy) {
+    if (ed.sel) {
+      var r = ed.sel;
+      selOp(function () {
+        var clip = SP.extract(cel(), r);
+        SP.clearRect(cel(), r);
+        if (clip) SP.blit(cel(), clip, r.x0 + dx, r.y0 + dy);
+      });
+      ed.sel = { x0: r.x0 + dx, y0: r.y0 + dy, x1: r.x1 + dx, y1: r.y1 + dy };
+      drawGrid(); selUi();
+    } else {
+      selOp(function () { cel().data.set(SP.shift(cel(), dx, dy).data); }, 'Camada movida neste frame (o que sai pela borda se perde).');
+    }
+  }
+  $('selCopy').addEventListener('click', function () { selCopy(); });
+  $('selCut').addEventListener('click', selCut);
+  $('selPaste').addEventListener('click', selPaste);
+  $('selDel').addEventListener('click', selDelete);
+  $('selFlipH').addEventListener('click', function () { selFlip(false); });
+  $('selFlipV').addEventListener('click', function () { selFlip(true); });
+
   // ---------- desfazer / refazer ----------
   function edAfterHist(en) {
     if (!en) return;
+    ed.sel = null;
     if (en.k === 'px') { ed.f = en.f; ed.l = en.l; }
-    edClampSel(); edLayout(); edRefresh(); edSaveSoon();
+    edClampSel(); edLayout(); edRefresh(); edSaveSoon(); selUi();
     $('edW').value = ed.P.w; $('edH').value = ed.P.h; $('edFps').value = ed.P.fps;
   }
   function edUndo() { edStop(); edAfterHist(ed.hist.back(ed.P)); }
@@ -645,8 +765,23 @@
     var k = ev.key.toLowerCase();
     if ((ev.ctrlKey || ev.metaKey) && k === 'z') { ev.preventDefault(); if (ev.shiftKey) edRedo(); else edUndo(); return; }
     if ((ev.ctrlKey || ev.metaKey) && k === 'y') { ev.preventDefault(); edRedo(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && (k === 'c' || k === 'x' || k === 'v' || k === 'a')) {
+      ev.preventDefault();
+      if (k === 'c') selCopy(); else if (k === 'x') selCut(); else if (k === 'v') selPaste();
+      else { ed.sel = { x0: 0, y0: 0, x1: ed.P.w - 1, y1: ed.P.h - 1 }; edSetTool('select'); drawGrid(); selUi(); edSay('Tudo selecionado.'); }
+      return;
+    }
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    var map = { b: 'pencil', e: 'eraser', g: 'bucket', i: 'picker', l: 'line', r: 'rect', o: 'ellipse' };
+    if (k === 'escape') { if (ed.sel) { ed.sel = null; drawGrid(); selUi(); } return; }
+    if (k === 'delete' || k === 'backspace') { if (ed.sel) { ev.preventDefault(); selDelete(); } return; }
+    if (k.indexOf('arrow') === 0) {
+      if (tg === 'INPUT' && ty === 'range') return;
+      ev.preventDefault();
+      var st = ev.shiftKey ? 8 : 1;
+      selNudge(k === 'arrowleft' ? -st : k === 'arrowright' ? st : 0, k === 'arrowup' ? -st : k === 'arrowdown' ? st : 0);
+      return;
+    }
+    var map = { b: 'pencil', e: 'eraser', g: 'bucket', i: 'picker', l: 'line', r: 'rect', o: 'ellipse', m: 'select' };
     if (map[k]) { edSetTool(map[k]); return; }
     if (k === '+' || k === '=') edStep(1); else if (k === '-') edStep(-1); else if (k === '0') edSetZoom('auto');
     else if (k === ',') edGoFrame(ed.f - 1); else if (k === '.') edGoFrame(ed.f + 1);

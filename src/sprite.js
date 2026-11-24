@@ -161,6 +161,50 @@
     '#29366f', '#3b5dc9', '#41a6f6', '#73eff7', '#f4f4f4', '#94b0c2', '#566c86', '#333c57'];
 
 
+
+  // ================= Seleção (retângulo): copiar, recortar, colar, mover =================
+  function normRect(x0, y0, x1, y1) { return { x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) }; }
+  function clipRect(d, r) {
+    var o = { x0: Math.max(0, r.x0), y0: Math.max(0, r.y0), x1: Math.min(d.w - 1, r.x1), y1: Math.min(d.h - 1, r.y1) };
+    return o.x1 < o.x0 || o.y1 < o.y0 ? null : o;
+  }
+  // Copia a região (já cortada pelos limites do desenho) para uma imagem solta.
+  function extract(d, r) {
+    var c = clipRect(d, r);
+    if (!c) return null;
+    var w = c.x1 - c.x0 + 1, h = c.y1 - c.y0 + 1, out = create(w, h);
+    for (var y = 0; y < h; y++) out.data.set(d.data.subarray(((c.y0 + y) * d.w + c.x0) * 4, ((c.y0 + y) * d.w + c.x0 + w) * 4), y * w * 4);
+    return out;
+  }
+  function clearRect(d, r) {
+    var c = clipRect(d, r);
+    if (!c) return 0;
+    for (var y = c.y0; y <= c.y1; y++) d.data.fill(0, (y * d.w + c.x0) * 4, (y * d.w + c.x1 + 1) * 4);
+    return (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1);
+  }
+  // Cola a imagem solta em (x, y); pixels transparentes não apagam nada; o que passa da borda é cortado.
+  function blit(d, clip, x, y) {
+    var n = 0;
+    for (var cy = 0; cy < clip.h; cy++) for (var cx = 0; cx < clip.w; cx++) {
+      var si = (cy * clip.w + cx) * 4;
+      if (!clip.data[si + 3]) continue;
+      if (set(d, x + cx, y + cy, [clip.data[si], clip.data[si + 1], clip.data[si + 2], clip.data[si + 3]])) n++;
+    }
+    return n;
+  }
+  // Espelha a região no lugar (horizontal ou vertical), dentro dos limites do desenho.
+  function flipRect(d, r, vertical) {
+    var c = clipRect(d, r);
+    if (!c) return false;
+    var clip = extract(d, c), f = vertical ? flipV(clip) : flipH(clip);
+    clearRect(d, c);
+    for (var y = 0; y < f.h; y++) for (var x = 0; x < f.w; x++) {
+      var i = (y * f.w + x) * 4;
+      if (f.data[i + 3]) set(d, c.x0 + x, c.y0 + y, [f.data[i], f.data[i + 1], f.data[i + 2], f.data[i + 3]]);
+    }
+    return true;
+  }
+
   // ================= Projeto: camadas × frames =================
   // Uma camada vale para todos os frames; cada frame tem uma "cel" (imagem) por camada.
   function project(w, h) {
@@ -281,6 +325,7 @@
   }
 
   var api = {
+    normRect: normRect, clipRect: clipRect, extract: extract, clearRect: clearRect, blit: blit, flipRect: flipRect,
     create: create, clone: clone, fromImage: fromImage, inside: inside, get: get, set: set, same: same,
     line: line, rect: rect, ellipse: ellipse, flood: flood, flipH: flipH, flipV: flipV, shift: shift, resize: resize,
     diff: diff, applyEntry: applyEntry, project: project, projectFromDoc: projectFromDoc, cloneProject: cloneProject, setProject: setProject, composite: composite, addLayer: addLayer, dupLayer: dupLayer, removeLayer: removeLayer, moveLayer: moveLayer, mergeDown: mergeDown, addFrame: addFrame, removeFrame: removeFrame, moveFrame: moveFrame, mapCels: mapCels, frameImages: frameImages, sheetImage: sheetImage, projHistory: projHistory, history: history, toHex: toHex, parseHex: parseHex, usedColors: usedColors, SWEETIE: SWEETIE

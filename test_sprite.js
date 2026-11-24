@@ -115,4 +115,35 @@ ok('palette is valid', S.SWEETIE.length === 16 && S.SWEETIE.every(c => S.parseHe
   const sh = S.sheetImage(Q); ok('sheet is frames side by side', sh.w === 12 && sh.h === 6 && S.same(S.get(sh, 5, 0), R));
   ok('projectFromDoc copies', (() => { const d = S.create(3, 3); S.set(d, 1, 1, R); const pr = S.projectFromDoc(d); S.set(d, 1, 1, B); return S.same(S.get(pr.frames[0].cels[0], 1, 1), R); })());
 }
+
+// ===== seleção =====
+{
+  const d = S.create(10, 8);
+  S.rect(2, 2, 4, 3, true, (x, y) => S.set(d, x, y, R)); // 3×2 vermelho
+  const r = S.normRect(4, 3, 2, 2);
+  ok('normRect orders corners', r.x0 === 2 && r.y0 === 2 && r.x1 === 4 && r.y1 === 3);
+  const clip = S.extract(d, r);
+  ok('extract size and content', clip.w === 3 && clip.h === 2 && S.same(S.get(clip, 0, 0), R) && S.same(S.get(clip, 2, 1), R));
+  ok('extract clamps to canvas', S.extract(d, { x0: 8, y0: 6, x1: 20, y1: 20 }).w === 2 && S.extract(d, { x0: 20, y0: 20, x1: 30, y1: 30 }) === null);
+  ok('extract is a copy', (() => { clip.data.fill(0); return S.same(S.get(d, 2, 2), R); })());
+  const c2 = S.extract(d, r);
+  ok('clearRect clears only the region', S.clearRect(d, r) === 6 && S.get(d, 2, 2)[3] === 0 && S.get(d, 4, 3)[3] === 0);
+  S.set(d, 0, 0, B);
+  ok('clearRect leaves others', S.same(S.get(d, 0, 0), B));
+  ok('blit places pixels', S.blit(d, c2, 5, 4) === 6 && S.same(S.get(d, 5, 4), R) && S.same(S.get(d, 7, 5), R));
+  // transparente não apaga; borda corta
+  const under = S.create(4, 1); S.set(under, 0, 0, B); S.set(under, 1, 0, B);
+  const half = S.create(2, 1); S.set(half, 1, 0, R);
+  S.blit(under, half, 0, 0);
+  ok('blit transparent pixels keep what is below', S.same(S.get(under, 0, 0), B) && S.same(S.get(under, 1, 0), R));
+  ok('blit clips at the border', S.blit(S.create(3, 3), c2, 2, 2) === 1);
+  ok('blit fully outside does nothing', S.blit(S.create(3, 3), c2, 9, 9) === 0);
+  // espelhar região no lugar
+  const f = S.create(6, 2); S.set(f, 1, 0, R); S.set(f, 2, 0, B);
+  S.flipRect(f, { x0: 1, y0: 0, x1: 2, y1: 0 }, false);
+  ok('flipRect horizontal swaps inside the region only', S.same(S.get(f, 1, 0), B) && S.same(S.get(f, 2, 0), R) && S.get(f, 0, 0)[3] === 0);
+  S.flipRect(f, { x0: 0, y0: 0, x1: 5, y1: 1 }, true);
+  ok('flipRect vertical', S.same(S.get(f, 1, 1), B) && S.get(f, 1, 0)[3] === 0);
+  ok('flipRect outside returns false', !S.flipRect(f, { x0: 50, y0: 50, x1: 60, y1: 60 }, false));
+}
 console.log(fails ? fails + ' FALHAS' : 'tudo certo'); process.exit(fails ? 1 : 0);
