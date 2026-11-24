@@ -197,6 +197,10 @@
   .layers .off .pick { opacity: .55; text-decoration: line-through; }
   .prev { display: grid; place-items: center; padding: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; overflow: auto;
     background-image: conic-gradient(#2d2640 25%, #383050 0 50%, #2d2640 0 75%, #383050 0); background-size: 12px 12px; }
+  .prev[data-bg=dark] { background: #0d0b14; }
+  .prev[data-bg=light] { background: #e9e6f2; }
+  .prev[data-bg=road] { background: linear-gradient(#7fa7d9 0 55%, #4b4f5c 55% 100%); }
+  .prev[data-bg=check] { background-image: conic-gradient(#2d2640 25%, #383050 0 50%, #2d2640 0 75%, #383050 0); background-size: 12px 12px; }
   #edPrev { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -706,7 +710,25 @@
       <details class="step" open>
         <summary><span class="n">3</span>Prévia</summary>
         <div class="body">
-          <div class="prev"><canvas id="edPrev" role="img" aria-label="Prévia da animação"></canvas></div>
+          <div class="field">
+            <span>Tamanho da prévia</span>
+            <div class="seg" role="group" aria-label="Tamanho da prévia">
+              <button type="button" class="btn" data-pscale="fit" aria-pressed="true" title="Ampliada para caber no painel">Ampliada</button>
+              <button type="button" class="btn" data-pscale="1" aria-pressed="false" title="Tamanho real, 1 pixel do sprite = 1 pixel da tela">1×</button>
+              <button type="button" class="btn" data-pscale="2" aria-pressed="false">2×</button>
+              <button type="button" class="btn" data-pscale="3" aria-pressed="false">3×</button>
+            </div>
+          </div>
+          <div class="field">
+            <span>Fundo da prévia</span>
+            <div class="seg" role="group" aria-label="Fundo da prévia">
+              <button type="button" class="btn" data-pbg="check" aria-pressed="true">Xadrez</button>
+              <button type="button" class="btn" data-pbg="dark" aria-pressed="false">Escuro</button>
+              <button type="button" class="btn" data-pbg="light" aria-pressed="false">Claro</button>
+              <button type="button" class="btn" data-pbg="road" aria-pressed="false">Pista</button>
+            </div>
+          </div>
+          <div class="prev" id="edPrevBox" data-bg="check"><canvas id="edPrev" role="img" aria-label="Prévia da animação"></canvas></div>
           <p class="note" id="edPrevInfo"></p>
         </div>
       </details>
@@ -722,6 +744,15 @@
           <div class="ed-pal" id="edPal" aria-label="Paleta"></div>
           <p class="sub">Cores do frame</p>
           <div class="ed-pal" id="edUsed" aria-label="Cores usadas no frame"></div>
+          <p class="sub">Gerenciar paleta</p>
+          <div class="btns">
+            <label class="btn" for="edPalFile" title="Abre um arquivo .hex ou .txt (uma cor por linha) ou um PNG">Abrir paleta</label>
+            <input class="sr" type="file" id="edPalFile" accept=".hex,.txt,text/plain,image/png,image/gif,image/webp">
+            <button type="button" class="btn" id="edPalSave">Salvar paleta</button>
+            <button type="button" class="btn" id="edPalFromDraw" title="Troca a paleta pelas cores usadas no frame atual">Usar cores do frame</button>
+            <button type="button" class="btn" id="edPalReset">Paleta padrão</button>
+          </div>
+          <p class="note">Clique com o botão direito numa cor da paleta para tirá-la. Aceita .hex ou .txt (uma cor por linha, como no Lospec) e PNG.</p>
         </div>
       </details>
       <details class="step" open>
@@ -739,8 +770,10 @@
           <div class="btns">
             <button type="button" class="btn" id="edFlipH">Espelhar ↔</button>
             <button type="button" class="btn" id="edFlipV">Espelhar ↕</button>
+            <button type="button" class="btn" id="edRotCCW" title="Girar 90° para a esquerda">Girar ↺</button>
+            <button type="button" class="btn" id="edRotCW" title="Girar 90° para a direita">Girar ↻</button>
           </div>
-          <p class="note">Aplicar muda o tamanho de todas as camadas e frames, mantendo o desenho no canto superior esquerdo. Novo sprite (no topo) começa em branco com o tamanho daqui. Apagar tudo esvazia o sprite e mantém o tamanho. Tudo isso dá para desfazer. Espelhar vale para o sprite inteiro. Tamanho de 1 a 256 px.</p>
+          <p class="note">Aplicar muda o tamanho de todas as camadas e frames, mantendo o desenho no canto superior esquerdo. Novo sprite (no topo) começa em branco com o tamanho daqui. Apagar tudo esvazia o sprite e mantém o tamanho. Tudo isso dá para desfazer. Espelhar e Girar valem para o sprite inteiro (Girar troca largura e altura). Tamanho de 1 a 256 px.</p>
         </div>
       </details>
       <details class="step" open>
@@ -778,6 +811,10 @@
             <button type="button" class="btn" id="edToGarage">Enviar para a garagem</button>
           </div>
           <p class="meta" id="edInfo"></p>
+          <textarea id="edFallbackText" hidden readonly rows="6" aria-label="Cores da paleta para copiar" style="width:100%;font:12px/1.4 monospace;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px"></textarea>
+          <figure id="edFallback" hidden style="margin:0">
+            <img id="edFallbackImg" alt="Imagem exportada" style="image-rendering:pixelated;max-width:100%;border:1px solid var(--line);border-radius:4px;background:var(--panel-2)">
+          </figure>
         </div>
       </details>
     </aside>
@@ -1696,6 +1733,13 @@
     });
   }
   function showFallback(blob, type) {
+    if (type === 'text/plain' && !$('edView').hidden) {
+      blob.text().then(function (txt) {
+        $('edFallbackText').value = txt; $('edFallbackText').hidden = false;
+        edSay('Este ambiente não abriu o download. As cores estão na caixa abaixo: copie e cole num arquivo .hex.');
+      });
+      return;
+    }
     if (type && type !== 'image/png' && type !== 'image/gif') {
       say('Este ambiente não abriu o download deste tipo de arquivo. Tente em um navegador comum ou salve o PNG pela imagem logo abaixo.');
       return;
@@ -1705,6 +1749,10 @@
     var url = URL.createObjectURL(blob);
     img.dataset.url = url; img.src = url;
     $('fallback').hidden = false;
+    if (!$('edView').hidden) {
+      $('edFallbackImg').src = url; $('edFallback').hidden = false;
+      edSay('Este ambiente não abriu o download. A imagem está logo abaixo: clique nela com o botão direito (ou segure o dedo) para salvar.');
+    }
     say('Este ambiente não abriu o download. A imagem está logo abaixo para você salvar.');
     sayGarage('Este ambiente não abriu o download. Use o botão Mostrar imagem em Exportar.');
   }

@@ -5,7 +5,7 @@
     P: SP.project(64, 48), f: 0, l: 0, hist: SP.projHistory(120),
     tool: 'pencil', color: [239, 125, 87], zoom: 'auto', z: 8, grid: true, onion: false, scale: 1,
     pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0,
-    playing: false, playTimer: 0, playF: 0, car: '', sel: null, clip: null, brush: 1
+    playing: false, playTimer: 0, playF: 0, car: '', sel: null, clip: null, brush: 1, pscale: 'fit'
   };
   var ED_KEY = 'garagem-pixel-editor-v2', ED_KEY_V1 = 'garagem-pixel-editor-v1';
   var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas'), edBuf2 = document.createElement('canvas');
@@ -36,7 +36,7 @@
     var s = null;
     try { s = JSON.parse(localStorage.getItem(ED_KEY) || 'null'); } catch (e) { s = null; }
     try {
-      if (s && Array.isArray(s.pal)) { var pal = s.pal.map(SP.parseHex).filter(Boolean).slice(0, 48); if (pal.length) ed.pal = pal; }
+      if (s && Array.isArray(s.pal)) { var pal = s.pal.map(SP.parseHex).filter(Boolean).slice(0, 64); if (pal.length) ed.pal = pal; }
       if (s && typeof s.car === 'string' && (s.car === '' || RC.carById(s.car))) edSetCar(s.car, true);
       if (s && typeof s.name === 'string') $('edName').value = s.name.replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40) || 'meu-sprite';
       if (s && Array.isArray(s.frames) && Array.isArray(s.layers) && s.frames.length && s.frames.length <= 64 && s.layers.length && s.layers.length <= 16) {
@@ -235,12 +235,19 @@
     c.drawImage(edBuf, 0, 0, edCanvas.width, edCanvas.height);
     $('edBoard').style.backgroundSize = Math.max(8, ed.z * 2) + 'px ' + Math.max(8, ed.z * 2) + 'px';
   }
-  function swatchBtn(c) {
+  function swatchBtn(c, removable) {
     var b = document.createElement('button'); b.type = 'button';
     var hx = SP.toHex(c);
     b.style.background = hx; b.title = hx; b.setAttribute('aria-label', 'Cor ' + hx);
     b.setAttribute('aria-pressed', String(hx === SP.toHex(ed.color)));
     b.addEventListener('click', function () { edSetColor(c); if (ed.tool === 'eraser') edSetTool('pencil'); });
+    if (removable) b.addEventListener('contextmenu', function (ev) {
+      ev.preventDefault();
+      var i = ed.pal.indexOf(c);
+      if (i < 0) return;
+      if (ed.pal.length < 2) { edSay('A paleta precisa ter pelo menos uma cor.'); return; }
+      ed.pal.splice(i, 1); edPalette(); edSaveSoon(); edSay('Cor ' + hx + ' tirada da paleta.');
+    });
     return b;
   }
   function edUsedPalette() {
@@ -250,7 +257,7 @@
   }
   function edPalette() {
     var box = $('edPal'); box.textContent = '';
-    ed.pal.forEach(function (c) { box.appendChild(swatchBtn(c)); });
+    ed.pal.forEach(function (c) { box.appendChild(swatchBtn(c, true)); });
   }
   function edSetColor(c) {
     ed.color = [c[0], c[1], c[2]];
@@ -312,7 +319,8 @@
   function edPreview(frame) {
     var cv = $('edPrev'), P = ed.P, f = frame == null ? ed.f : frame;
     if (cv.width !== P.w || cv.height !== P.h) { cv.width = P.w; cv.height = P.h; }
-    cv.style.width = P.w * clamp(Math.floor(220 / P.w), 1, 8) + 'px';
+    cv.style.width = P.w * (ed.pscale === 'fit' ? clamp(Math.floor(220 / P.w), 1, 8) : ed.pscale) + 'px';
+    cv.style.maxWidth = ed.pscale === 'fit' ? '100%' : 'none';
     var g = cv.getContext('2d'); g.clearRect(0, 0, P.w, P.h);
     putImg(edBuf2, SP.composite(P, f)); g.drawImage(edBuf2, 0, 0);
     $('edPrevInfo').textContent = P.frames.length === 1 ? 'Um frame só. Crie mais frames para animar.'
@@ -569,6 +577,54 @@
       edRefresh();
     });
   });
+  // prévia: tamanho e fundo
+  document.querySelectorAll('[data-pscale]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-pscale'); ed.pscale = v === 'fit' ? 'fit' : parseInt(v, 10);
+      document.querySelectorAll('[data-pscale]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      edPreview(ed.playing ? ed.playF : undefined);
+    });
+  });
+  document.querySelectorAll('[data-pbg]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $('edPrevBox').setAttribute('data-bg', b.getAttribute('data-pbg'));
+      document.querySelectorAll('[data-pbg]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+    });
+  });
+  // paleta: abrir, salvar, usar as cores do frame, voltar ao padrão
+  function edUsePalette(list, msg) {
+    if (!list.length) { edSay('Não encontrei nenhuma cor nesse arquivo.'); return; }
+    ed.pal = list.slice(0, 64); edPalette(); edSaveSoon();
+    edSetColor(ed.pal[0]);
+    edSay(msg + (list.length > 64 ? ' Usei as 64 primeiras.' : ''));
+  }
+  $('edPalFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; this.value = '';
+    if (!f) return;
+    if (/^image\//.test(f.type)) {
+      var url = URL.createObjectURL(f);
+      imageFromUrl(url, function (im) {
+        URL.revokeObjectURL(url);
+        if (!im) { edSay('Não consegui abrir essa imagem.'); return; }
+        edUsePalette(SP.usedColors(im, 64), 'Paleta com as cores da imagem (' + Math.min(64, SP.usedColors(im, 999).length) + ' cores).');
+      });
+    } else {
+      f.text().then(function (txt) {
+        var l = SP.parseHexList(txt, 64);
+        edUsePalette(l, 'Paleta aberta (' + l.length + ' cores).');
+      }, function () { edSay('Não consegui ler esse arquivo.'); });
+    }
+  });
+  $('edPalSave').addEventListener('click', function () {
+    edSaveBlob(new Blob([SP.toHexList(ed.pal)], { type: 'text/plain' }), edFileName() + '-paleta.hex', 'text/plain');
+  });
+  $('edPalFromDraw').addEventListener('click', function () {
+    var l = SP.usedColors(edFrameImg(), 64);
+    edUsePalette(l, 'Paleta trocada pelas ' + l.length + ' cores do frame.');
+  });
+  $('edPalReset').addEventListener('click', function () {
+    ed.pal = SP.SWEETIE.map(SP.parseHex); edPalette(); edSaveSoon(); edSay('Paleta padrão (Sweetie 16) de volta.');
+  });
   function edSetBrush(n) {
     ed.brush = clamp(n, 1, 4);
     document.querySelectorAll('[data-ebrush]').forEach(function (b) { b.setAttribute('aria-pressed', String(parseInt(b.getAttribute('data-ebrush'), 10) === ed.brush)); });
@@ -582,7 +638,7 @@
   $('edAddColor').addEventListener('click', function () {
     var hx = SP.toHex(ed.color);
     if (ed.pal.some(function (c) { return SP.toHex(c) === hx; })) { edSay('Essa cor já está na paleta.'); return; }
-    ed.pal.push(ed.color.slice()); if (ed.pal.length > 48) ed.pal.shift();
+    ed.pal.push(ed.color.slice()); if (ed.pal.length > 64) ed.pal.shift();
     edPalette(); edSaveSoon(); edSay('Cor ' + hx + ' guardada na paleta.');
   });
 
@@ -669,6 +725,13 @@
     edRefresh(); edSaveSoon(); edSay('Camada limpa neste frame. Use Desfazer para voltar.');
   });
   $('edFlipH').addEventListener('click', function () { edStruct(function () { SP.mapCels(ed.P, SP.flipH); }, 'Sprite espelhado na horizontal.'); });
+  $('edRotCW').addEventListener('click', function () { edRotate(true); });
+  $('edRotCCW').addEventListener('click', function () { edRotate(false); });
+  function edRotate(cw) {
+    var w = ed.P.h, h = ed.P.w;
+    edStruct(function () { SP.mapCels(ed.P, function (c) { return SP.rotate90(c, cw); }, w, h); },
+      'Sprite girado 90° ' + (cw ? 'para a direita' : 'para a esquerda') + ' (agora ' + w + ' × ' + h + ' px).');
+  }
   $('edFlipV').addEventListener('click', function () { edStruct(function () { SP.mapCels(ed.P, SP.flipV); }, 'Sprite espelhado na vertical.'); });
 
   // abrir

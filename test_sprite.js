@@ -157,4 +157,19 @@ ok('palette is valid', S.SWEETIE.length === 16 && S.SWEETIE.every(c => S.parseHe
   ok('round 2 stays square', S.brush(2, true).length === 4);
   ok('size is clamped', S.brush(99).length === 64 && S.brush(0).length === 1);
 }
+// ===== girar e paleta em texto =====
+{
+  const d = S.create(4, 2); S.set(d, 0, 0, R); S.set(d, 3, 1, B);
+  const cw = S.rotate90(d, true), ccw = S.rotate90(d, false);
+  ok('rotate swaps size', cw.w === 2 && cw.h === 4 && ccw.w === 2 && ccw.h === 4);
+  ok('rotate clockwise moves top-left to top-right', S.same(S.get(cw, 1, 0), R) && S.same(S.get(cw, 0, 3), B));
+  ok('rotate counter-clockwise moves top-left to bottom-left', S.same(S.get(ccw, 0, 3), R) && S.same(S.get(ccw, 1, 0), B));
+  const back = S.rotate90(S.rotate90(d, true), false); ok('rotate cw then ccw is the identity', back.data.every((v, i) => v === d.data[i]));
+  const four = S.rotate90(S.rotate90(S.rotate90(S.rotate90(d, true), true), true), true); ok('four rotations are the identity', four.data.every((v, i) => v === d.data[i]));
+  const pal = S.parseHexList('#FF0000\n00ff00\n# comentário\nzzz\n#0f0\n#00f, 112233;112233');
+  ok('parseHexList reads #rrggbb, rrggbb, #rgb and drops junk and duplicates', pal.length === 4 && pal[0].join() === '255,0,0' && pal[1].join() === '0,255,0' && pal[2].join() === '0,0,255' && pal[3].join() === '17,34,51', pal.map(c => c.join()).join('|'));
+  ok('parseHexList caps the size', S.parseHexList(Array.from({ length: 100 }, (_, i) => ('00000' + i.toString(16)).slice(-6)).join('\n'), 64).length === 64);
+  ok('toHexList round trips', S.parseHexList(S.toHexList(S.SWEETIE.map(S.parseHex))).map(S.toHex).join() === S.SWEETIE.join());
+  ok('empty text gives empty palette', S.parseHexList('').length === 0 && S.parseHexList(null).length === 0);
+}
 console.log(fails ? fails + ' FALHAS' : 'tudo certo'); process.exit(fails ? 1 : 0);

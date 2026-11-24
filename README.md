@@ -71,4 +71,8 @@ Aba "Editor de sprites" no topo da página: uma grade de pixels para desenhar do
 - Seleção (M): arraste para marcar uma área; arrastar dentro dela move (Alt copia); setas movem 1 px (Shift, 8 px); Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+A, Delete e Esc; espelhar a área. A área copiada pode ser colada em outro frame ou camada. Sem seleção, as setas movem a camada inteira. Desfazer e refazer desmarcam a seleção.
 - Começar de novo: "Novo sprite" (topo, usa a largura e a altura de Tela) e "Apagar tudo" (mantém o tamanho). Abrir um carro, uma imagem ou a garagem também troca o sprite. Nenhum deles pede confirmação, porque todos entram no Desfazer.
 - Pincéis de 1 a 4 px (quadrado ou redondo; [ e ] mudam o tamanho) para lápis, borracha, linha, retângulo e elipse. "Só onde já tem cor" pinta apenas pixels que já têm cor, sem invadir o fundo transparente (a borracha ignora essa trava).
-- Próximas etapas planejadas: prévia em tamanho real, girar 90°, importar paleta.
+- Prévia em tamanho real (1×, 2×, 3× ou ampliada) com fundo xadrez, escuro, claro ou de pista, para ver o sprite como no jogo.
+- Paletas: abrir (.hex ou .txt com uma cor por linha, ou um PNG), salvar em .hex, usar as cores do frame, voltar à padrão, tirar uma cor com o botão direito (até 64 cores).
+- Girar o sprite 90° para os dois lados (todas as camadas e frames), com desfazer.
+- Sem permissão de download, o editor mostra a imagem (ou o texto da paleta) para você salvar na mão.
+- Próximas etapas possíveis: mais testes com fotos reais, salvar projetos com nome, instalar como app.

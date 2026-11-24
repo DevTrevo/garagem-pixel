@@ -138,6 +138,31 @@
     return h;
   }
 
+
+  // Gira o desenho em 90° (horário ou anti-horário); a largura e a altura trocam.
+  function rotate90(d, clockwise) {
+    var o = create(d.h, d.w);
+    for (var y = 0; y < d.h; y++) for (var x = 0; x < d.w; x++) {
+      var c = get(d, x, y);
+      if (clockwise) set(o, d.h - 1 - y, x, c); else set(o, y, d.w - 1 - x, c);
+    }
+    return o;
+  }
+  // Paleta em texto: uma cor por linha (#rrggbb, rrggbb ou #rgb). Linhas com outra coisa são ignoradas.
+  function parseHexList(text, max) {
+    var out = [], seen = {}, lines = String(text || '').split(/[\r\n,;\s]+/);
+    for (var i = 0; i < lines.length && out.length < (max || 64); i++) {
+      var s = lines[i].replace(/^#/, '');
+      if (/^[0-9a-f]{3}$/i.test(s)) s = s.charAt(0) + s.charAt(0) + s.charAt(1) + s.charAt(1) + s.charAt(2) + s.charAt(2);
+      if (!/^[0-9a-f]{6}$/i.test(s)) continue;
+      s = s.toLowerCase();
+      if (seen[s]) continue;
+      seen[s] = 1; out.push(parseHex(s));
+    }
+    return out;
+  }
+  function toHexList(pal) { return pal.map(function (c) { return toHex(c).slice(1); }).join('\n') + '\n'; }
+
   // ---- cores ----
   function toHex(c) { return '#' + [c[0], c[1], c[2]].map(function (v) { return ('0' + Math.round(v).toString(16)).slice(-2); }).join(''); }
   function parseHex(s) {
@@ -337,6 +362,7 @@
   }
 
   var api = {
+    rotate90: rotate90, parseHexList: parseHexList, toHexList: toHexList,
     brush: brush,
     normRect: normRect, clipRect: clipRect, extract: extract, clearRect: clearRect, blit: blit, flipRect: flipRect,
     create: create, clone: clone, fromImage: fromImage, inside: inside, get: get, set: set, same: same,
