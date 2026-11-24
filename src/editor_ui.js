@@ -5,7 +5,7 @@
     P: SP.project(64, 48), f: 0, l: 0, hist: SP.projHistory(120),
     tool: 'pencil', color: [239, 125, 87], zoom: 'auto', z: 8, grid: true, onion: false, scale: 1,
     pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0,
-    playing: false, playTimer: 0, playF: 0
+    playing: false, playTimer: 0, playF: 0, car: ''
   };
   var ED_KEY = 'garagem-pixel-editor-v2', ED_KEY_V1 = 'garagem-pixel-editor-v1';
   var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas'), edBuf2 = document.createElement('canvas');
@@ -22,7 +22,7 @@
         localStorage.setItem(ED_KEY, JSON.stringify({
           w: P.w, h: P.h, fps: P.fps, layers: P.layers,
           frames: P.frames.map(function (fr) { return fr.cels.map(function (c) { return toCanvas(c).toDataURL('image/png'); }); }),
-          pal: ed.pal.map(SP.toHex), name: $('edName').value
+          pal: ed.pal.map(SP.toHex), name: $('edName').value, car: ed.car
         }));
       } catch (e) { /* armazenamento pode estar bloqueado ou cheio */ }
     }, 400);
@@ -37,6 +37,7 @@
     try { s = JSON.parse(localStorage.getItem(ED_KEY) || 'null'); } catch (e) { s = null; }
     try {
       if (s && Array.isArray(s.pal)) { var pal = s.pal.map(SP.parseHex).filter(Boolean).slice(0, 48); if (pal.length) ed.pal = pal; }
+      if (s && typeof s.car === 'string' && (s.car === '' || RC.carById(s.car))) edSetCar(s.car, true);
       if (s && typeof s.name === 'string') $('edName').value = s.name.replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40) || 'meu-sprite';
       if (s && Array.isArray(s.frames) && Array.isArray(s.layers) && s.frames.length && s.frames.length <= 64 && s.layers.length && s.layers.length <= 16) {
         var urls = [];
@@ -132,13 +133,83 @@
     edGrid.width = w * z; edGrid.height = h * z;
     drawGrid();
   }
+  function edCarObj() { return ed.car ? RC.carById(ed.car) : null; }
   function drawGrid() {
     var g = edGrid.getContext('2d'), z = ed.z, w = ed.P.w, h = ed.P.h;
     g.clearRect(0, 0, edGrid.width, edGrid.height);
-    if (!ed.grid || z < 6) return;
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    for (var x = 1; x < w; x++) g.fillRect(x * z, 0, 1, h * z);
-    for (var y = 1; y < h; y++) g.fillRect(0, y * z, w * z, 1);
+    if (ed.grid && z >= 6) {
+      g.fillStyle = 'rgba(255,255,255,0.14)';
+      for (var x = 1; x < w; x++) g.fillRect(x * z, 0, 1, h * z);
+      for (var y = 1; y < h; y++) g.fillRect(0, y * z, w * z, 1);
+    }
+    drawCarGuide(g, z);
+  }
+  // Guia do Racha de Rua: chão, folga sob a carroceria, círculo da roda e anel da caixa de roda.
+  function drawCarGuide(g, z) {
+    var car = edCarObj();
+    if (!car || !$('edGuideOn').checked) return;
+    g.save(); g.lineWidth = 1.5; g.setLineDash([]);
+    function hline(y, x0, x1, color, dash) {
+      var yy = Math.min(Math.max(y * z, 1), g.canvas.height - 1);
+      g.beginPath(); g.setLineDash(dash || []); g.strokeStyle = color; g.moveTo(x0 * z, yy); g.lineTo(x1 * z, yy); g.stroke();
+    }
+    function circle(cx, cy, r, color, dash) {
+      g.beginPath(); g.setLineDash(dash || []); g.strokeStyle = color; g.arc(cx * z, cy * z, r * z, 0, Math.PI * 2); g.stroke();
+    }
+    g.setLineDash([6, 4]); g.strokeStyle = 'rgba(255,255,255,0.5)'; g.strokeRect(0.5, 0.5, car.w * z - 1, car.h * z - 1);
+    hline(car.ground, 0, car.w, '#7dff8a');
+    if (car.groundGap) hline(car.h, 0, car.w, 'rgba(255,255,255,0.7)', [4, 4]);
+    hline(car.ground - RC.CLEAR, car.rear[0] + RC.WELL_OUT, car.front[0] - RC.WELL_OUT, '#ff6ad5', [4, 4]);
+    [car.rear, car.front].forEach(function (wh) {
+      circle(wh[0], wh[1], RC.WHEEL_R, '#4de6ff');
+      circle(wh[0], wh[1], RC.WELL_IN, 'rgba(77,230,255,0.55)', [3, 3]);
+      circle(wh[0], wh[1], RC.WELL_OUT, '#ffb347');
+      g.beginPath(); g.setLineDash([]); g.strokeStyle = '#4de6ff';
+      g.moveTo((wh[0] - 1.5) * z, wh[1] * z); g.lineTo((wh[0] + 1.5) * z, wh[1] * z);
+      g.moveTo(wh[0] * z, (wh[1] - 1.5) * z); g.lineTo(wh[0] * z, (wh[1] + 1.5) * z); g.stroke();
+    });
+    g.restore();
+  }
+  // Conferência do frame atual contra a tabela (as mesmas regras do modo do gerador, sem as de pintura).
+  function carChecks() {
+    var car = edCarObj();
+    if (!car) return [];
+    var im = edFrameImg(), list = RC.check({ img: im, car: car, clip: { bottom: 0, top: 0, left: 0, right: 0 }, paint: { hue: null }, trimmed: 0, edited: 0 })
+      .filter(function (c) { return c.id === 'size' || c.id === 'wells' || c.id === 'bg' || c.id === 'clear'; });
+    var bad = 0, d = im.data, W = im.w, H = im.h, x, y;
+    if (W === car.w && H === car.h) {
+      [car.rear, car.front].forEach(function (wh) {
+        for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+          var i = (y * W + x) * 4, dd = Math.hypot(x + 0.5 - wh[0], y + 0.5 - wh[1]);
+          if (d[i + 3] > 0 && dd >= RC.WELL_IN && dd <= RC.WELL_OUT && (d[i] !== RC.WELL_COLOR[0] || d[i + 1] !== RC.WELL_COLOR[1] || d[i + 2] !== RC.WELL_COLOR[2])) bad++;
+        }
+      });
+      list.push({ id: 'ring', level: bad ? 'warn' : 'ok', text: bad ? bad + ' pixel(s) do anel da caixa de roda (raio 11,6 a 13) com cor diferente de #0b0a14.' : 'Anel da caixa de roda na cor certa (#0b0a14).' });
+    }
+    return list;
+  }
+  function renderCarChecks() {
+    var ul = $('edChecks'); ul.textContent = '';
+    carChecks().forEach(function (c) {
+      var li = document.createElement('li'); li.className = c.level;
+      var ic = document.createElement('span'); ic.className = 'ic'; ic.setAttribute('aria-hidden', 'true');
+      ic.textContent = c.level === 'ok' ? '✓' : c.level === 'warn' ? '!' : 'i';
+      var sr = document.createElement('span'); sr.className = 'sr'; sr.textContent = c.level === 'ok' ? 'Ok: ' : c.level === 'warn' ? 'Aviso: ' : 'Nota: ';
+      var tx = document.createElement('span'); tx.textContent = c.text;
+      li.appendChild(ic); li.appendChild(sr); li.appendChild(tx); ul.appendChild(li);
+    });
+  }
+  function edSetCar(id, quiet) {
+    ed.car = id || '';
+    var car = edCarObj();
+    $('edCar').value = ed.car;
+    $('edCarTools').hidden = !car;
+    if (car) {
+      $('edCarInfo').textContent = car.id + ' · ' + car.name + '. Imagem ' + car.w + ' × ' + car.h + ' px, rodas traseira (' + car.rear[0] + ', ' + car.rear[1] + ') e dianteira (' + car.front[0] + ', ' + car.front[1] + '), raio 11. ' +
+        'Verde: chão. Rosa: folga de 7 px sob a carroceria. Ciano: roda. Laranja: caixa de roda.';
+    }
+    drawGrid(); renderCarChecks();
+    if (!quiet) edSaveSoon();
   }
 
   // ---------- desenho na tela ----------
@@ -257,7 +328,7 @@
   }
   function edRefresh() {
     edClampSel();
-    edDraw(); edUsedPalette(); renderLayers(); renderFrames(); edPreview();
+    edDraw(); edUsedPalette(); renderLayers(); renderFrames(); edPreview(); renderCarChecks();
     $('spUndo').disabled = !ed.hist.undo.length; $('spRedo').disabled = !ed.hist.redo.length;
     var P = ed.P;
     $('edInfo').textContent = 'Frame: ' + P.w * ed.scale + ' × ' + P.h * ed.scale + ' px · folha: ' + P.w * P.frames.length * ed.scale + ' × ' + P.h * ed.scale + ' px · ' +
@@ -382,6 +453,23 @@
     edPalette(); edSaveSoon(); edSay('Cor ' + hx + ' guardada na paleta.');
   });
 
+  // guia do Racha de Rua
+  (function () {
+    var sel = $('edCar'), o = document.createElement('option');
+    o.value = ''; o.textContent = 'Nenhum (sem guia)'; sel.appendChild(o);
+    RC.CARS.forEach(function (c) { var op = document.createElement('option'); op.value = c.id; op.textContent = c.id + ' · ' + c.name + ' (' + c.w + '×' + c.h + ')'; sel.appendChild(op); });
+  })();
+  $('edCar').addEventListener('change', function () { edSetCar(this.value); });
+  $('edGuideOn').addEventListener('change', drawGrid);
+  $('edFitCar').addEventListener('click', function () {
+    var car = edCarObj();
+    if (!car) return;
+    if (ed.P.w === car.w && ed.P.h === car.h) { edSay('A tela já tem o tamanho do carro (' + car.w + ' × ' + car.h + ' px).'); return; }
+    $('edW').value = car.w; $('edH').value = car.h;
+    edStruct(function () { SP.mapCels(ed.P, function (c) { return SP.resize(c, car.w, car.h); }, car.w, car.h); },
+      'Tela ajustada para ' + car.w + ' × ' + car.h + ' px. Use Desfazer para voltar.');
+  });
+
   // camadas
   $('edLayerName').addEventListener('input', function () {
     ed.P.layers[ed.l].name = this.value.slice(0, 24) || 'Camada';
@@ -477,7 +565,10 @@
     var self = this;
     edConfirm('car', self, 'Carro do gerador', function () {
       var d = SP.fromImage(stat.img);
-      edSetProject(SP.projectFromDoc(d)); edSaveSoon();
+      edSetProject(SP.projectFromDoc(d));
+      var gc = typeof gameCar === 'function' ? gameCar() : null;
+      if (gc) edSetCar(gc.id, true);
+      edSaveSoon();
       edSay('Carro do gerador aberto (' + d.w + ' × ' + d.h + ' px). Pode retocar à vontade.' + (stat.img.w > 256 || stat.img.h > 256 ? ' Atenção: o editor aceita até 256 px, o resto foi cortado.' : ''));
     });
   });
@@ -537,9 +628,13 @@
   });
   $('edToGarage').addEventListener('click', function () {
     if (!edHasInk()) { edSay('Desenhe alguma coisa antes de enviar.'); return; }
-    var dropped = pushGarage(edFrameImg(), null);
+    var car = edCarObj(), meta = null, extra = '';
+    if (car && ed.P.w === car.w && ed.P.h === car.h) meta = { car: car.id, file: car.file };
+    else if (car) extra = ' Como a tela não tem o tamanho do carro ' + car.id + ', ele entra como carro livre e não vai no pacote do jogo.';
+    var dropped = pushGarage(edFrameImg(), meta);
     saveGarage(); renderGarage(); edGaragePicker();
-    edSay(dropped ? 'Enviado para a garagem (frame ' + (ed.f + 1) + '). O mais antigo saiu para caber.' : 'Frame ' + (ed.f + 1) + ' enviado para a garagem.');
+    edSay((dropped ? 'Enviado para a garagem (frame ' + (ed.f + 1) + '). O mais antigo saiu para caber.' : 'Frame ' + (ed.f + 1) + ' enviado para a garagem.') +
+      (meta ? ' Ele vai no pacote do jogo como ' + meta.file + '.' : '') + extra);
   });
   $('edName').addEventListener('input', edSaveSoon);
 

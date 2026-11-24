@@ -67,4 +67,5 @@ Aba "Editor de sprites" no topo da página: uma grade de pixels para desenhar do
 - Salva PNG do frame, folha de frames e GIF animado. Abre uma folha de frames informando quantos frames ela tem.
 - Estrutura (camadas, frames, tamanho) também entra no desfazer.
 - Código: `src/sprite.js` (modelo de projeto e histórico), `src/editor_ui.js` (interface do editor, inlinada no módulo principal).
-- Próximas etapas planejadas: guia do Racha de Rua no editor, selecionar e mover, pincéis maiores.
+- Guia do Racha de Rua: escolha um carro da tabela e o editor mostra por cima do desenho o chão, a folga de 7 px, as rodas e as caixas de roda, com conferência (tamanho, rodas vazias, fundo, folga e cor do anel). "Ajustar a tela ao carro" muda o tamanho. Enviar para a garagem com o tamanho certo coloca o sprite no pacote .zip do jogo.
+- Próximas etapas planejadas: selecionar e mover, pincéis maiores.
