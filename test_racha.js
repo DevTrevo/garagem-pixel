@@ -102,7 +102,7 @@ R.CARS.forEach(car => {
   const res = R.render(prepared, car, opts), img = res.img, d = img.data;
   const tag = 'car ' + car.id;
   check(tag + ' size', img.w === car.w && img.h === car.h, img.w + 'x' + img.h);
-  let semi = 0, inside = 0, ringDark = 0, ringOpaque = 0, lowest = -1, opaque = 0;
+  let semi = 0, inside = 0, ringDark = 0, ringOpaque = 0, lowest = -1, opaque = 0, shadowBits = 0;
   for (let y = 0; y < img.h; y++) for (let x = 0; x < img.w; x++) {
     const i = (y * img.w + x) * 4, a = d[i + 3];
     if (a > 0 && a < 255) semi++;
@@ -114,7 +114,9 @@ R.CARS.forEach(car => {
       else if (dd <= 13) { ringOpaque++; if (d[i] === 11 && d[i + 1] === 10 && d[i + 2] === 20) ringDark++; }
     }
     if (x > car.rear[0] + 13 && x < car.front[0] - 13) lowest = Math.max(lowest, y);
+    if (y >= car.ground - 3 && [car.rear, car.front].every(wh => Math.hypot(x + 0.5 - wh[0], y + 0.5 - wh[1]) > 13)) shadowBits++;
   }
+  check(tag + ' no ground-shadow strip in the last 3 rows outside the wheels', shadowBits === 0, 'bits=' + shadowBits);
   check(tag + ' alpha binary', semi === 0);
   check(tag + ' nothing opaque inside r<11.6', inside === 0, 'inside=' + inside);
   check(tag + ' well ring is #0b0a14', ringOpaque > 20 && ringDark === ringOpaque, ringDark + '/' + ringOpaque);

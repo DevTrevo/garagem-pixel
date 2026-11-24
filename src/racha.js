@@ -4,7 +4,7 @@
   'use strict';
   var P = root.PixelCar || (typeof require !== 'undefined' ? require('./pipeline.js') : null);
 
-  var WHEEL_R = 11, WELL_IN = 11.6, WELL_OUT = 13, CLEAR = 7;
+  var WHEEL_R = 11, WELL_IN = 11.6, WELL_OUT = 13, CLEAR = 7, SHADOW_ROWS = 3;
   var WELL_COLOR = [11, 10, 20];
 
   // id, nome no jogo, inspiração, tamanho, [x,y] roda traseira, [x,y] roda dianteira
@@ -236,6 +236,12 @@
     var from = wheels[0][0] + WELL_OUT, to = wheels[1][0] - WELL_OUT, trimmed = 0;
     for (y = car.ground - CLEAR; y < H; y++) for (x = Math.ceil(from); x < to; x++) {
       if (d[(y * W + x) * 4 + 3] > 0) { d[(y * W + x) * 4 + 3] = 0; trimmed++; }
+    }
+    // sombra de contato: nas últimas linhas, fora das rodas, a foto costuma trazer uma faixa escura do chão colada nos para-choques
+    for (y = Math.max(0, car.ground - SHADOW_ROWS); y < H; y++) for (x = 0; x < W; x++) {
+      if (d[(y * W + x) * 4 + 3] === 0) continue;
+      var nearWheel = wheels.some(function (wh) { return Math.hypot(x + 0.5 - wh[0], y + 0.5 - wh[1]) <= WELL_OUT; });
+      if (!nearWheel) { d[(y * W + x) * 4 + 3] = 0; trimmed++; }
     }
     // cor: ajustes, matiz único da lataria, brilhos, luz de cima
     var tuned = P.hueShift(P.adjustColors(img, o.sat, o.contrast), o.hue);
