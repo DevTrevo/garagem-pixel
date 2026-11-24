@@ -160,10 +160,130 @@
   var SWEETIE = ['#1a1c2c', '#5d275d', '#b13e53', '#ef7d57', '#ffcd75', '#a7f070', '#38b764', '#257179',
     '#29366f', '#3b5dc9', '#41a6f6', '#73eff7', '#f4f4f4', '#94b0c2', '#566c86', '#333c57'];
 
+
+  // ================= Projeto: camadas × frames =================
+  // Uma camada vale para todos os frames; cada frame tem uma "cel" (imagem) por camada.
+  function project(w, h) {
+    w = Math.max(1, Math.min(256, w | 0)); h = Math.max(1, Math.min(256, h | 0));
+    return { w: w, h: h, fps: 8, layers: [{ name: 'Camada 1', visible: true }], frames: [{ cels: [create(w, h)] }] };
+  }
+  function projectFromDoc(d) {
+    var p = project(d.w, d.h); p.frames[0].cels[0] = clone(d); return p;
+  }
+  function cloneProject(p) {
+    return {
+      w: p.w, h: p.h, fps: p.fps,
+      layers: p.layers.map(function (l) { return { name: l.name, visible: l.visible }; }),
+      frames: p.frames.map(function (f) { return { cels: f.cels.map(clone) }; })
+    };
+  }
+  function setProject(dst, src) { dst.w = src.w; dst.h = src.h; dst.fps = src.fps; dst.layers = src.layers; dst.frames = src.frames; }
+  // Junta as camadas visíveis do frame (a de cima vence; mistura alfa normal).
+  function composite(p, f) {
+    var out = create(p.w, p.h), o = out.data, fr = p.frames[f];
+    for (var l = 0; l < p.layers.length; l++) {
+      if (!p.layers[l].visible) continue;
+      var s = fr.cels[l].data;
+      for (var i = 0; i < s.length; i += 4) {
+        var sa = s[i + 3];
+        if (!sa) continue;
+        var da = o[i + 3];
+        if (sa === 255 || !da) { o[i] = s[i]; o[i + 1] = s[i + 1]; o[i + 2] = s[i + 2]; o[i + 3] = sa; continue; }
+        var a = sa / 255, ba = da / 255, ra = a + ba * (1 - a);
+        o[i] = (s[i] * a + o[i] * ba * (1 - a)) / ra; o[i + 1] = (s[i + 1] * a + o[i + 1] * ba * (1 - a)) / ra;
+        o[i + 2] = (s[i + 2] * a + o[i + 2] * ba * (1 - a)) / ra; o[i + 3] = ra * 255;
+      }
+    }
+    return out;
+  }
+  function addLayer(p, at, name) {
+    at = Math.max(0, Math.min(p.layers.length, at == null ? p.layers.length : at));
+    p.layers.splice(at, 0, { name: name || 'Camada ' + (p.layers.length + 1), visible: true });
+    p.frames.forEach(function (f) { f.cels.splice(at, 0, create(p.w, p.h)); });
+    return at;
+  }
+  function dupLayer(p, l) {
+    var at = addLayer(p, l + 1, p.layers[l].name + ' cópia');
+    p.frames.forEach(function (f) { f.cels[at] = clone(f.cels[l]); });
+    return at;
+  }
+  function removeLayer(p, l) {
+    if (p.layers.length < 2 || l < 0 || l >= p.layers.length) return false;
+    p.layers.splice(l, 1); p.frames.forEach(function (f) { f.cels.splice(l, 1); });
+    return true;
+  }
+  function moveLayer(p, l, dir) {
+    var n = l + dir;
+    if (l < 0 || n < 0 || l >= p.layers.length || n >= p.layers.length) return -1;
+    var a = p.layers[l]; p.layers[l] = p.layers[n]; p.layers[n] = a;
+    p.frames.forEach(function (f) { var c = f.cels[l]; f.cels[l] = f.cels[n]; f.cels[n] = c; });
+    return n;
+  }
+  // Junta a camada l com a de baixo (l-1); o resultado fica na de baixo.
+  function mergeDown(p, l) {
+    if (l < 1 || l >= p.layers.length) return false;
+    p.frames.forEach(function (f) {
+      var top = f.cels[l], bot = f.cels[l - 1];
+      for (var i = 0; i < top.data.length; i += 4) if (top.data[i + 3] === 255) {
+        bot.data[i] = top.data[i]; bot.data[i + 1] = top.data[i + 1]; bot.data[i + 2] = top.data[i + 2]; bot.data[i + 3] = 255;
+      }
+    });
+    return removeLayer(p, l);
+  }
+  function addFrame(p, at, dup) {
+    at = Math.max(0, Math.min(p.frames.length, at == null ? p.frames.length : at));
+    var src = dup != null ? p.frames[dup] : null;
+    p.frames.splice(at, 0, { cels: p.layers.map(function (_, l) { return src ? clone(src.cels[l]) : create(p.w, p.h); }) });
+    return at;
+  }
+  function removeFrame(p, f) {
+    if (p.frames.length < 2 || f < 0 || f >= p.frames.length) return false;
+    p.frames.splice(f, 1); return true;
+  }
+  function moveFrame(p, f, dir) {
+    var n = f + dir;
+    if (f < 0 || n < 0 || f >= p.frames.length || n >= p.frames.length) return -1;
+    var a = p.frames[f]; p.frames[f] = p.frames[n]; p.frames[n] = a; return n;
+  }
+  // Aplica uma transformação de imagem a todas as cels (espelhar, mover, mudar tamanho).
+  function mapCels(p, fn, w, h) {
+    p.frames.forEach(function (f) { f.cels = f.cels.map(fn); });
+    if (w) { p.w = w; p.h = h; }
+  }
+  function frameImages(p) { return p.frames.map(function (_, f) { return composite(p, f); }); }
+  // folha de frames lado a lado (sem o limite de 256 do desenho)
+  function sheetImage(p) {
+    var n = p.frames.length, w = p.w * n, out = { w: w, h: p.h, data: new Uint8ClampedArray(w * p.h * 4) };
+    for (var f = 0; f < n; f++) {
+      var c = composite(p, f);
+      for (var y = 0; y < p.h; y++) out.data.set(c.data.subarray(y * p.w * 4, (y + 1) * p.w * 4), (y * w + f * p.w) * 4);
+    }
+    return out;
+  }
+
+  // Histórico do projeto: "px" = pixels de uma cel; "proj" = foto inteira antes/depois (mudanças de estrutura).
+  function projHistory(limit) {
+    var h = { undo: [], redo: [], limit: limit || 100 };
+    function trim() { while (h.undo.length > h.limit) h.undo.shift(); }
+    h.pushPx = function (f, l, e) { if (!e) return; h.undo.push({ k: 'px', f: f, l: l, e: e }); h.redo.length = 0; trim(); };
+    h.pushProj = function (before, after) { h.undo.push({ k: 'proj', before: before, after: after }); h.redo.length = 0; trim(); };
+    function run(p, en, back) {
+      if (en.k === 'px') {
+        var f = p.frames[en.f], c = f && f.cels[en.l];
+        return !!c && applyEntry(c, en.e, back);
+      }
+      setProject(p, cloneProject(back ? en.before : en.after)); return true;
+    }
+    h.back = function (p) { var en = h.undo.pop(); if (!en) return null; if (!run(p, en, true)) return null; h.redo.push(en); return en; };
+    h.forward = function (p) { var en = h.redo.pop(); if (!en) return null; if (!run(p, en, false)) return null; h.undo.push(en); return en; };
+    h.clear = function () { h.undo.length = 0; h.redo.length = 0; };
+    return h;
+  }
+
   var api = {
     create: create, clone: clone, fromImage: fromImage, inside: inside, get: get, set: set, same: same,
     line: line, rect: rect, ellipse: ellipse, flood: flood, flipH: flipH, flipV: flipV, shift: shift, resize: resize,
-    diff: diff, applyEntry: applyEntry, history: history, toHex: toHex, parseHex: parseHex, usedColors: usedColors, SWEETIE: SWEETIE
+    diff: diff, applyEntry: applyEntry, project: project, projectFromDoc: projectFromDoc, cloneProject: cloneProject, setProject: setProject, composite: composite, addLayer: addLayer, dupLayer: dupLayer, removeLayer: removeLayer, moveLayer: moveLayer, mergeDown: mergeDown, addFrame: addFrame, removeFrame: removeFrame, moveFrame: moveFrame, mapCels: mapCels, frameImages: frameImages, sheetImage: sheetImage, projHistory: projHistory, history: history, toHex: toHex, parseHex: parseHex, usedColors: usedColors, SWEETIE: SWEETIE
   };
   root.PixelSprite = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

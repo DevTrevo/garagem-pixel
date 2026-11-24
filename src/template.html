@@ -185,6 +185,19 @@
   .thumbs button { padding: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
   .thumbs button:hover { border-color: var(--accent); }
   .thumbs img { display: block; height: 32px; width: auto; max-width: 110px; image-rendering: pixelated; }
+  .framebox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .frames { display: flex; flex-wrap: wrap; gap: 8px; }
+  .frames button { padding: 5px 5px 3px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; color: var(--muted); font: 600 11px/1 var(--font-body); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .frames button[aria-pressed=true] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); }
+  .frames canvas { display: block; height: 40px; width: auto; max-width: 96px; image-rendering: pixelated; background: conic-gradient(#2d2640 25%, #383050 0 50%, #2d2640 0 75%, #383050 0) 0 0 / 8px 8px; }
+  .layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .layers li { display: flex; gap: 6px; }
+  .layers .eye { width: 36px; padding: 8px 0; }
+  .layers .pick { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layers .off .pick { opacity: .55; text-decoration: line-through; }
+  .prev { display: grid; place-items: center; padding: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; overflow: auto;
+    background-image: conic-gradient(#2d2640 25%, #383050 0 50%, #2d2640 0 75%, #383050 0); background-size: 12px 12px; }
+  #edPrev { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
@@ -587,6 +600,7 @@
           <button type="button" class="btn" id="edZoomIn" aria-label="Aumentar o zoom" title="Aumentar (+)">+</button>
         </div>
         <label class="check"><input type="checkbox" id="edGridOn" checked>Grade</label>
+        <label class="check"><input type="checkbox" id="edOnion">Frame anterior</label>
         <span class="meta" id="edZoomNow"></span>
         <span class="meta" id="edPos">Passe o mouse sobre o desenho.</span>
       </div>
@@ -596,6 +610,19 @@
           <canvas id="edGrid" aria-hidden="true"></canvas>
         </div>
       </div>
+      <section class="framebox" aria-label="Frames da animação">
+        <div class="btns">
+          <button type="button" class="btn" id="frNew" title="Novo frame em branco depois do atual">Novo frame</button>
+          <button type="button" class="btn" id="frDup" title="Copia o frame atual">Duplicar</button>
+          <button type="button" class="btn" id="frLeft" aria-label="Mover o frame para a esquerda" title="Mover para a esquerda">◀</button>
+          <button type="button" class="btn" id="frRight" aria-label="Mover o frame para a direita" title="Mover para a direita">▶</button>
+          <button type="button" class="btn" id="frDel">Excluir frame</button>
+          <button type="button" class="btn primary" id="frPlay" aria-pressed="false" title="Tocar a animação (P)">▶ Tocar</button>
+        </div>
+        <div class="frames" id="edFrames" role="group" aria-label="Escolher frame"></div>
+        <label class="row"><span>Velocidade da animação</span><output id="edFpsOut"></output>
+          <input type="range" id="edFps" min="1" max="24" step="1" value="8"></label>
+      </section>
       <p class="note" id="edStatus" role="status" aria-live="polite">Escolha uma ferramenta e desenhe. Botão direito apaga com o lápis.</p>
     </section>
     <aside class="ed-side" aria-label="Ferramentas do editor">
@@ -619,11 +646,35 @@
             <button type="button" class="btn" id="spUndo" disabled title="Desfazer (Ctrl+Z)">Desfazer</button>
             <button type="button" class="btn" id="spRedo" disabled title="Refazer (Ctrl+Y)">Refazer</button>
           </div>
-          <p class="note">Atalhos: B lápis, E borracha, G balde, I conta-gotas, L linha, R retângulo, O elipse, Ctrl+Z e Ctrl+Y. Zoom: + e − (ou Ctrl + roda do mouse); 0 ajusta ao tamanho da tela.</p>
+          <p class="note">Atalhos: B lápis, E borracha, G balde, I conta-gotas, L linha, R retângulo, O elipse, Ctrl+Z e Ctrl+Y. Zoom: + e − (ou Ctrl + roda do mouse); 0 ajusta ao tamanho da tela. Frames: vírgula e ponto trocam de frame; P toca a animação.</p>
         </div>
       </details>
       <details class="step" open>
-        <summary><span class="n">2</span>Cores</summary>
+        <summary><span class="n">2</span>Camadas</summary>
+        <div class="body">
+          <ul class="layers" id="edLayers" aria-label="Camadas (a de cima fica na frente)"></ul>
+          <label class="field"><span>Nome da camada</span>
+            <input type="text" id="edLayerName" maxlength="24" autocomplete="off"></label>
+          <div class="btns">
+            <button type="button" class="btn" id="lyNew">Nova</button>
+            <button type="button" class="btn" id="lyDup">Duplicar</button>
+            <button type="button" class="btn" id="lyUp" aria-label="Subir a camada" title="Trazer para frente">▲</button>
+            <button type="button" class="btn" id="lyDown" aria-label="Descer a camada" title="Levar para trás">▼</button>
+            <button type="button" class="btn" id="lyMerge" title="Junta com a camada de baixo">Mesclar ↓</button>
+            <button type="button" class="btn" id="lyDel">Excluir</button>
+          </div>
+          <p class="note">Você desenha só na camada marcada. O olho liga e desliga a camada. Cada frame tem o seu desenho em cada camada.</p>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">3</span>Prévia</summary>
+        <div class="body">
+          <div class="prev"><canvas id="edPrev" role="img" aria-label="Prévia da animação"></canvas></div>
+          <p class="note" id="edPrevInfo"></p>
+        </div>
+      </details>
+      <details class="step" open>
+        <summary><span class="n">4</span>Cores</summary>
         <div class="body">
           <div class="cur">
             <span class="swatch" id="edSwatch"></span>
@@ -632,12 +683,12 @@
           </div>
           <p class="sub">Paleta</p>
           <div class="ed-pal" id="edPal" aria-label="Paleta"></div>
-          <p class="sub">Cores do desenho</p>
-          <div class="ed-pal" id="edUsed" aria-label="Cores usadas no desenho"></div>
+          <p class="sub">Cores do frame</p>
+          <div class="ed-pal" id="edUsed" aria-label="Cores usadas no frame"></div>
         </div>
       </details>
       <details class="step" open>
-        <summary><span class="n">3</span>Tela</summary>
+        <summary><span class="n">5</span>Tela</summary>
         <div class="body">
           <div class="dims">
             <label class="field"><span>Largura</span><input type="number" id="edW" min="1" max="256" value="64"></label>
@@ -646,29 +697,31 @@
           </div>
           <div class="btns">
             <button type="button" class="btn" id="edNew">Nova tela em branco</button>
-            <button type="button" class="btn" id="spClear">Limpar</button>
+            <button type="button" class="btn" id="spClear">Limpar camada</button>
           </div>
           <div class="btns">
             <button type="button" class="btn" id="edFlipH">Espelhar ↔</button>
             <button type="button" class="btn" id="edFlipV">Espelhar ↕</button>
           </div>
-          <p class="note">Aplicar muda o tamanho mantendo o desenho no canto superior esquerdo. Tamanho de 1 a 256 px.</p>
+          <p class="note">Aplicar muda o tamanho de todas as camadas e frames, mantendo o desenho no canto superior esquerdo. Espelhar vale para o sprite inteiro. Tamanho de 1 a 256 px.</p>
         </div>
       </details>
       <details class="step" open>
-        <summary><span class="n">4</span>Abrir</summary>
+        <summary><span class="n">6</span>Abrir</summary>
         <div class="body">
           <div class="btns">
             <button type="button" class="btn" id="edFromCar">Carro do gerador</button>
             <label class="btn" for="edFile">Abrir PNG</label>
             <input class="sr" type="file" id="edFile" accept="image/png,image/gif,image/webp">
           </div>
+          <label class="field"><span>Frames na imagem (para abrir uma folha de frames)</span>
+            <input type="number" id="edSheetN" min="1" max="64" value="1"></label>
           <p class="sub">Da garagem</p>
           <div class="thumbs" id="edGarage"></div>
         </div>
       </details>
       <details class="step" open>
-        <summary><span class="n">5</span>Salvar</summary>
+        <summary><span class="n">7</span>Salvar</summary>
         <div class="body">
           <label class="field"><span>Nome do arquivo</span>
             <input type="text" id="edName" maxlength="40" value="meu-sprite" autocomplete="off" spellcheck="false"></label>
@@ -682,7 +735,9 @@
             </div>
           </div>
           <div class="btns">
-            <button type="button" class="btn primary" id="edSave">Salvar PNG</button>
+            <button type="button" class="btn primary" id="edSave">PNG do frame</button>
+            <button type="button" class="btn" id="edSaveSheet">Folha de frames</button>
+            <button type="button" class="btn" id="edSaveGif">GIF animado</button>
             <button type="button" class="btn" id="edToGarage">Enviar para a garagem</button>
           </div>
           <p class="meta" id="edInfo"></p>
@@ -2028,363 +2083,7 @@
   });
 
 
-  /* ---------- aba Editor de sprites ---------- */
-  var ed = {
-    doc: SP.create(64, 48), hist: SP.history(120), tool: 'pencil', color: [239, 125, 87], zoom: 'auto', grid: true, scale: 1,
-    pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0
-  };
-  var ED_KEY = 'garagem-pixel-editor-v1';
-  var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas');
-  function edSay(t) { $('edStatus').textContent = t; }
-
-  function edSaveSoon() {
-    clearTimeout(ed.saveTimer);
-    ed.saveTimer = setTimeout(function () {
-      try { localStorage.setItem(ED_KEY, JSON.stringify({ url: toCanvas(ed.doc).toDataURL('image/png'), pal: ed.pal.map(SP.toHex), name: $('edName').value })); } catch (e) { /* armazenamento pode estar bloqueado */ }
-    }, 400);
-  }
-  function edLoadSaved() {
-    try {
-      var s = JSON.parse(localStorage.getItem(ED_KEY) || 'null');
-      if (!s || typeof s.url !== 'string' || s.url.indexOf('data:image/png') !== 0) return;
-      if (Array.isArray(s.pal)) {
-        var pal = s.pal.map(SP.parseHex).filter(Boolean).slice(0, 48);
-        if (pal.length) ed.pal = pal;
-      }
-      if (typeof s.name === 'string') $('edName').value = s.name.replace(/[^A-Za-z0-9_-]+/g, '-').slice(0, 40) || 'meu-sprite';
-      imageFromUrl(s.url, function (im) { if (im) { edSetDoc(SP.fromImage(im), true); edSay('Seu último desenho foi recuperado.'); } });
-    } catch (e) { /* ignore */ }
-  }
-  function imageFromUrl(url, cb) {
-    var img = new Image();
-    img.onload = function () {
-      var c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
-      var g = c.getContext('2d'); g.drawImage(img, 0, 0);
-      var d = g.getImageData(0, 0, c.width, c.height);
-      cb({ w: c.width, h: c.height, data: d.data });
-    };
-    img.onerror = function () { cb(null); };
-    img.src = url;
-  }
-
-  function edHasInk() { var d = ed.doc.data; for (var i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }
-  // Ações que apagam o desenho pedem um segundo clique (confirm() não existe aqui).
-  function edConfirm(key, btn, label, go) {
-    if (ed.armed === key) { clearTimeout(ed.armedTimer); ed.armed = null; btn.textContent = btn.getAttribute('data-label'); go(); return; }
-    if (!edHasInk()) { go(); return; }
-    ed.armed = key; btn.setAttribute('data-label', label); btn.textContent = 'Clique de novo para apagar o desenho';
-    clearTimeout(ed.armedTimer);
-    ed.armedTimer = setTimeout(function () { ed.armed = null; btn.textContent = label; }, 3000);
-  }
-  function edSetDoc(d, keepHist) {
-    ed.doc = d;
-    if (!keepHist) ed.hist.clear();
-    $('edW').value = d.w; $('edH').value = d.h;
-    edLayout(); edRefresh();
-  }
-  var ED_ZOOMS = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32];
-  // Zoom automático: o desenho inteiro cabe na área visível, sem barra de rolagem.
-  function edAutoZoom() {
-    var box = $('edScroll'), w = ed.doc.w, h = ed.doc.h;
-    var availW = Math.max(40, box.clientWidth - 26), availH = Math.max(40, Math.min(window.innerHeight * 0.7, 720) - 26);
-    return clamp(Math.floor(Math.min(availW / w, availH / h)), 1, 32);
-  }
-  function edZ() { return ed.zoom === 'auto' ? edAutoZoom() : ed.zoom; }
-  function edSetZoom(z) {
-    ed.zoom = z;
-    document.querySelectorAll('[data-ezoom]').forEach(function (o) {
-      var v = o.getAttribute('data-ezoom'); o.setAttribute('aria-pressed', String(String(z) === v));
-    });
-    edLayout(); edDraw();
-  }
-  function edStep(dir) {
-    var cur = edZ(), i;
-    if (dir > 0) { for (i = 0; i < ED_ZOOMS.length; i++) if (ED_ZOOMS[i] > cur) return edSetZoom(ED_ZOOMS[i]); }
-    else { for (i = ED_ZOOMS.length - 1; i >= 0; i--) if (ED_ZOOMS[i] < cur) return edSetZoom(ED_ZOOMS[i]); }
-  }
-  function edLayout() {
-    var w = ed.doc.w, h = ed.doc.h, z = edZ();
-    ed.z = z; $('edZoomNow').textContent = 'zoom ' + z + '×';
-    edBuf.width = w; edBuf.height = h;
-    edCanvas.width = w * z; edCanvas.height = h * z;
-    edGrid.width = w * z; edGrid.height = h * z;
-    drawGrid();
-  }
-  function drawGrid() {
-    var g = edGrid.getContext('2d'), z = ed.z, w = ed.doc.w, h = ed.doc.h;
-    g.clearRect(0, 0, edGrid.width, edGrid.height);
-    if (!ed.grid || z < 6) return;
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    for (var x = 1; x < w; x++) g.fillRect(x * z, 0, 1, h * z);
-    for (var y = 1; y < h; y++) g.fillRect(0, y * z, w * z, 1);
-  }
-  function edDraw() {
-    var g = edBuf.getContext('2d');
-    g.putImageData(new ImageData(new Uint8ClampedArray(ed.doc.data), ed.doc.w, ed.doc.h), 0, 0);
-    var c = edCanvas.getContext('2d'); c.imageSmoothingEnabled = false;
-    c.clearRect(0, 0, edCanvas.width, edCanvas.height);
-    c.drawImage(edBuf, 0, 0, edCanvas.width, edCanvas.height);
-    // fundo xadrez acompanha o zoom
-    $('edBoard').style.backgroundSize = Math.max(8, ed.z * 2) + 'px ' + Math.max(8, ed.z * 2) + 'px';
-  }
-  function edUsedPalette() {
-    var box = $('edUsed'); box.textContent = '';
-    SP.usedColors(ed.doc, 32).forEach(function (c) { box.appendChild(swatchBtn(c)); });
-    if (!box.childNodes.length) { var p = document.createElement('span'); p.className = 'note'; p.textContent = 'Nenhuma ainda.'; box.appendChild(p); }
-  }
-  function swatchBtn(c) {
-    var b = document.createElement('button'); b.type = 'button';
-    var hx = SP.toHex(c);
-    b.style.background = hx; b.title = hx; b.setAttribute('aria-label', 'Cor ' + hx);
-    b.setAttribute('aria-pressed', String(hx === SP.toHex(ed.color)));
-    b.addEventListener('click', function () { edSetColor(c); if (ed.tool === 'eraser') edSetTool('pencil'); });
-    return b;
-  }
-  function edPalette() {
-    var box = $('edPal'); box.textContent = '';
-    ed.pal.forEach(function (c) { box.appendChild(swatchBtn(c)); });
-  }
-  function edSetColor(c) {
-    ed.color = [c[0], c[1], c[2]];
-    $('edSwatch').style.background = SP.toHex(ed.color);
-    $('edColor').value = SP.toHex(ed.color);
-    edPalette(); edUsedPalette();
-  }
-  function edSetTool(t) {
-    ed.tool = t;
-    document.querySelectorAll('[data-etool]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-etool') === t)); });
-  }
-  function edRefresh() {
-    edDraw(); edUsedPalette();
-    $('spUndo').disabled = !ed.hist.undo.length; $('spRedo').disabled = !ed.hist.redo.length;
-    $('edInfo').textContent = 'PNG: ' + ed.doc.w * ed.scale + ' × ' + ed.doc.h * ed.scale + ' px · ' + SP.usedColors(ed.doc, 999).length + ' cores';
-  }
-
-  function edPoint(ev) {
-    var r = edCanvas.getBoundingClientRect();
-    return [Math.floor((ev.clientX - r.left) / r.width * ed.doc.w), Math.floor((ev.clientY - r.top) / r.height * ed.doc.h)];
-  }
-  // pinta (ou apaga) um pixel, com simetria opcional
-  function stamp(x, y, col) {
-    var d = ed.doc;
-    SP.set(d, x, y, col);
-    if ($('edMirror').checked) SP.set(d, d.w - 1 - x, y, col);
-  }
-  function edPointerDown(ev) {
-    if (ev.button !== 0 && ev.button !== 2) return;
-    ev.preventDefault();
-    var p = edPoint(ev);
-    if (!SP.inside(ed.doc, p[0], p[1])) return;
-    var erase = ev.button === 2 || ed.tool === 'eraser';
-    var col = erase ? [0, 0, 0, 0] : [ed.color[0], ed.color[1], ed.color[2], 255];
-    if (ed.tool === 'picker') {
-      var c = SP.get(ed.doc, p[0], p[1]);
-      if (c && c[3]) { edSetColor(c); edSay('Cor ' + SP.toHex(c) + ' escolhida.'); }
-      else edSay('Esse pixel está vazio.');
-      return;
-    }
-    try { edCanvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
-    ed.drag = { before: SP.clone(ed.doc), start: p, col: col, tool: ed.tool };
-    ed.last = p;
-    if (ed.tool === 'bucket') {
-      SP.flood(ed.doc, p[0], p[1], function (x, y) { stamp(x, y, col); });
-      edEnd();
-      return;
-    }
-    if (ed.tool === 'pencil' || ed.tool === 'eraser') stamp(p[0], p[1], col);
-    edDraw();
-  }
-  function edShape(a, b) {
-    var d = ed.drag, fill = $('edFill').checked;
-    ed.doc.data.set(d.before.data);
-    var cb = function (x, y) { stamp(x, y, d.col); };
-    if (d.tool === 'line') SP.line(a[0], a[1], b[0], b[1], cb);
-    else if (d.tool === 'rect') SP.rect(a[0], a[1], b[0], b[1], fill, cb);
-    else if (d.tool === 'ellipse') SP.ellipse(a[0], a[1], b[0], b[1], fill, cb);
-  }
-  function edPointerMove(ev) {
-    var p = edPoint(ev);
-    if (SP.inside(ed.doc, p[0], p[1])) {
-      var c = SP.get(ed.doc, p[0], p[1]);
-      $('edPos').textContent = 'x ' + p[0] + ' · y ' + p[1] + (c[3] ? ' · ' + SP.toHex(c) : ' · vazio');
-    }
-    if (!ed.drag) return;
-    var d = ed.drag;
-    if (d.tool === 'pencil' || d.tool === 'eraser') {
-      SP.line(ed.last[0], ed.last[1], p[0], p[1], function (x, y) { stamp(x, y, d.col); });
-      ed.last = p;
-    } else if (d.tool === 'line' || d.tool === 'rect' || d.tool === 'ellipse') {
-      edShape(d.start, p);
-    }
-    edDraw();
-  }
-  function edEnd() {
-    if (!ed.drag) return;
-    var entry = SP.diff(ed.drag.before, ed.doc);
-    ed.drag = null;
-    if (entry) { ed.hist.push(entry); edSaveSoon(); }
-    edRefresh();
-  }
-  edCanvas.addEventListener('pointerdown', edPointerDown);
-  edCanvas.addEventListener('pointermove', edPointerMove);
-  edCanvas.addEventListener('pointerup', edEnd);
-  edCanvas.addEventListener('pointercancel', edEnd);
-  edCanvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  edCanvas.addEventListener('pointerleave', function () { if (!ed.drag) $('edPos').textContent = 'Passe o mouse sobre o desenho.'; });
-
-  function edUndo() { if (ed.hist.back(ed.doc)) { edSaveSoon(); edRefresh(); } }
-  function edRedo() { if (ed.hist.forward(ed.doc)) { edSaveSoon(); edRefresh(); } }
-  // Troca o desenho inteiro como um passo desfazível (quando o tamanho não muda) ou limpa o histórico.
-  function edReplace(nd, say) {
-    if (nd.w === ed.doc.w && nd.h === ed.doc.h) {
-      ed.hist.push(SP.diff(ed.doc, nd)); ed.doc = nd; edRefresh();
-    } else { edSetDoc(nd); }
-    edSaveSoon(); if (say) edSay(say);
-  }
-
-  document.querySelectorAll('[data-etool]').forEach(function (b) { b.addEventListener('click', function () { edSetTool(b.getAttribute('data-etool')); }); });
-  document.querySelectorAll('[data-ezoom]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var v = b.getAttribute('data-ezoom'); edSetZoom(v === 'auto' ? 'auto' : parseInt(v, 10));
-    });
-  });
-  $('edZoomIn').addEventListener('click', function () { edStep(1); });
-  $('edZoomOut').addEventListener('click', function () { edStep(-1); });
-  // Ctrl + roda do mouse (ou pinça no trackpad) muda o zoom dentro da área de desenho
-  $('edScroll').addEventListener('wheel', function (ev) {
-    if (!ev.ctrlKey && !ev.metaKey) return;
-    ev.preventDefault(); edStep(ev.deltaY < 0 ? 1 : -1);
-  }, { passive: false });
-  window.addEventListener('resize', function () { if (!$('edView').hidden && ed.zoom === 'auto') { edLayout(); edDraw(); } });
-  if (window.ResizeObserver) new ResizeObserver(function () {
-    if (!$('edView').hidden && ed.zoom === 'auto' && edAutoZoom() !== ed.z) { edLayout(); edDraw(); }
-  }).observe($('edScroll'));
-  document.querySelectorAll('[data-escale]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      ed.scale = parseInt(b.getAttribute('data-escale'), 10);
-      document.querySelectorAll('[data-escale]').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
-      edRefresh();
-    });
-  });
-  $('edGridOn').addEventListener('change', function () { ed.grid = this.checked; drawGrid(); });
-  $('spUndo').addEventListener('click', edUndo);
-  $('spRedo').addEventListener('click', edRedo);
-  $('edColor').addEventListener('input', function () { var c = SP.parseHex(this.value); if (c) { edSetColor(c); if (ed.tool === 'eraser') edSetTool('pencil'); } });
-  $('edAddColor').addEventListener('click', function () {
-    var hx = SP.toHex(ed.color);
-    if (ed.pal.some(function (c) { return SP.toHex(c) === hx; })) { edSay('Essa cor já está na paleta.'); return; }
-    ed.pal.push(ed.color.slice()); if (ed.pal.length > 48) ed.pal.shift();
-    edPalette(); edSaveSoon(); edSay('Cor ' + hx + ' guardada na paleta.');
-  });
-  $('edResize').addEventListener('click', function () {
-    var w = clamp(parseInt($('edW').value, 10) || ed.doc.w, 1, 256), h = clamp(parseInt($('edH').value, 10) || ed.doc.h, 1, 256);
-    $('edW').value = w; $('edH').value = h;
-    if (w === ed.doc.w && h === ed.doc.h) return;
-    edSetDoc(SP.resize(ed.doc, w, h)); edSaveSoon();
-    edSay('Tela agora com ' + w + ' × ' + h + ' px. O histórico de desfazer foi reiniciado.');
-  });
-  $('edNew').addEventListener('click', function () {
-    var b = this;
-    edConfirm('new', b, 'Nova tela em branco', function () {
-      var w = clamp(parseInt($('edW').value, 10) || 64, 1, 256), h = clamp(parseInt($('edH').value, 10) || 48, 1, 256);
-      edSetDoc(SP.create(w, h)); edSaveSoon(); edSay('Tela em branco de ' + w + ' × ' + h + ' px.');
-    });
-  });
-  $('spClear').addEventListener('click', function () {
-    var before = SP.clone(ed.doc);
-    ed.doc.data.fill(0);
-    ed.hist.push(SP.diff(before, ed.doc)); edRefresh(); edSaveSoon(); edSay('Desenho limpo. Use Desfazer para voltar.');
-  });
-  $('edFlipH').addEventListener('click', function () { edReplace(SP.flipH(ed.doc), 'Desenho espelhado na horizontal.'); });
-  $('edFlipV').addEventListener('click', function () { edReplace(SP.flipV(ed.doc), 'Desenho espelhado na vertical.'); });
-
-  $('edFromCar').addEventListener('click', function () {
-    if (!stat) { edSay('Gere um carro no Gerador primeiro.'); return; }
-    var b = this;
-    edConfirm('car', b, 'Carro do gerador', function () {
-      var d = SP.fromImage(stat.img);
-      edSetDoc(d); edSaveSoon();
-      edSay('Carro do gerador aberto (' + d.w + ' × ' + d.h + ' px). Pode retocar à vontade.' + (stat.img.w > 256 || stat.img.h > 256 ? ' Atenção: o editor aceita até 256 px, o resto foi cortado.' : ''));
-    });
-  });
-  $('edFile').addEventListener('change', function () {
-    var f = this.files && this.files[0]; this.value = '';
-    if (!f) return;
-    var url = URL.createObjectURL(f);
-    imageFromUrl(url, function (im) {
-      URL.revokeObjectURL(url);
-      if (!im) { edSay('Não consegui abrir essa imagem.'); return; }
-      var big = im.w > 256 || im.h > 256;
-      edSetDoc(SP.fromImage(im)); edSaveSoon();
-      edSay('Imagem aberta (' + Math.min(im.w, 256) + ' × ' + Math.min(im.h, 256) + ' px).' + (big ? ' Ela passava de 256 px, então foi cortada.' : ''));
-    });
-  });
-  function edGaragePicker() {
-    var box = $('edGarage'); box.textContent = '';
-    if (!garage.length) { var p = document.createElement('span'); p.className = 'note'; p.textContent = 'A garagem está vazia.'; box.appendChild(p); return; }
-    garage.forEach(function (it, idx) {
-      var b = document.createElement('button'); b.type = 'button'; b.title = 'Abrir este carro no editor'; b.setAttribute('aria-label', 'Abrir o carro ' + (idx + 1) + ' da garagem');
-      var im = document.createElement('img'); im.src = it.url; im.alt = ''; b.appendChild(im);
-      b.addEventListener('click', function () {
-        var key = 'g' + it.id;
-        if (ed.armed !== key && edHasInk()) {
-          ed.armed = key; clearTimeout(ed.armedTimer);
-          ed.armedTimer = setTimeout(function () { ed.armed = null; }, 3000);
-          edSay('Isso troca o desenho atual. Clique de novo no mesmo carro para confirmar.');
-          return;
-        }
-        ed.armed = null;
-        imageFromUrl(it.url, function (img) {
-          if (!img) { edSay('Não consegui abrir esse carro.'); return; }
-          edSetDoc(SP.fromImage(img)); edSaveSoon(); edSay('Carro da garagem aberto no editor.');
-        });
-      });
-      box.appendChild(b);
-    });
-  }
-  function edFileName() { return ($('edName').value || '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'meu-sprite'; }
-  $('edSave').addEventListener('click', function () {
-    var c = scaleCanvas(toCanvas(ed.doc), ed.scale), name = edFileName() + (ed.scale > 1 ? '-' + ed.scale + 'x' : '') + '.png';
-    canvasToBlob(c).then(function (blob) {
-      saveData(blob, name, 'image/png', function (n, msg) { edSay(n ? 'Arquivo ' + n + ' salvo.' : msg); });
-    });
-  });
-  $('edToGarage').addEventListener('click', function () {
-    if (!edHasInk()) { edSay('Desenhe alguma coisa antes de enviar.'); return; }
-    var dropped = pushGarage(ed.doc, null);
-    saveGarage(); renderGarage(); edGaragePicker();
-    edSay(dropped ? 'Enviado para a garagem. O mais antigo saiu para caber.' : 'Enviado para a garagem.');
-  });
-  $('edName').addEventListener('input', edSaveSoon);
-
-  document.addEventListener('keydown', function (ev) {
-    if ($('edView').hidden) return;
-    var tg = ev.target && ev.target.tagName;
-    var ty = ev.target && ev.target.type;
-    if (tg === 'SELECT' || tg === 'TEXTAREA' || (tg === 'INPUT' && (ty === 'text' || ty === 'number'))) return;
-    var k = ev.key.toLowerCase();
-    if ((ev.ctrlKey || ev.metaKey) && k === 'z') { ev.preventDefault(); if (ev.shiftKey) edRedo(); else edUndo(); return; }
-    if ((ev.ctrlKey || ev.metaKey) && k === 'y') { ev.preventDefault(); edRedo(); return; }
-    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    var map = { b: 'pencil', e: 'eraser', g: 'bucket', i: 'picker', l: 'line', r: 'rect', o: 'ellipse' };
-    if (map[k]) { edSetTool(map[k]); return; }
-    if (k === '+' || k === '=') edStep(1); else if (k === '-') edStep(-1); else if (k === '0') edSetZoom('auto');
-  });
-
-  var edStarted = false;
-  function showView(v) {
-    var ev = v === 'ed';
-    $('genView').hidden = ev; $('edView').hidden = !ev;
-    $('tabGen').setAttribute('aria-pressed', String(!ev)); $('tabEd').setAttribute('aria-pressed', String(ev));
-    if (ev) {
-      if (!edStarted) { edStarted = true; edLoadSaved(); }
-      edGaragePicker(); edLayout(); edRefresh();
-    }
-    try { history.replaceState(null, '', ev ? '#editor' : location.pathname + location.search); } catch (e) { /* ignore */ }
-  }
-  $('tabGen').addEventListener('click', function () { showView('gen'); });
-  $('tabEd').addEventListener('click', function () { showView('ed'); });
-  edSetColor(ed.color); edPalette(); edLayout(); edDraw();
+  /*EDITORUI*/
 
   /* ---------- start ---------- */
   buildSpec();

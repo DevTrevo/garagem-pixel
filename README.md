@@ -63,4 +63,8 @@ Aba "Editor de sprites" no topo da página: uma grade de pixels para desenhar do
 - Abre o carro do gerador, um carro da garagem ou um PNG; salva PNG em 1× a 8× ou envia para a garagem.
 - O último desenho fica guardado no navegador.
 - Código: `src/sprite.js` (lógica pura, testada em `test_sprite.js`) e a interface em `src/template.html`.
-- Próximas etapas planejadas: camadas e frames com prévia animada, exportar folha de frames e GIF.
+- Camadas: criar, duplicar, ordenar, esconder, renomear, mesclar e excluir (até 16). Frames: criar, duplicar, mover, excluir (até 64), casca de cebola do frame anterior e prévia animada com velocidade ajustável. Atalhos: vírgula e ponto trocam de frame, P toca.
+- Salva PNG do frame, folha de frames e GIF animado. Abre uma folha de frames informando quantos frames ela tem.
+- Estrutura (camadas, frames, tamanho) também entra no desfazer.
+- Código: `src/sprite.js` (modelo de projeto e histórico), `src/editor_ui.js` (interface do editor, inlinada no módulo principal).
+- Próximas etapas planejadas: guia do Racha de Rua no editor, selecionar e mover, pincéis maiores.
