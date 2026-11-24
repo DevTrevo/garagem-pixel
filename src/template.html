@@ -590,6 +590,7 @@
   <main class="ed" id="edView" hidden>
     <section class="ed-main" aria-label="Área de desenho">
       <div class="bar">
+        <button type="button" class="btn primary" id="edNew" title="Começa um sprite em branco com a largura e a altura de Tela">Novo sprite</button>
         <div class="seg" role="group" aria-label="Zoom">
           <button type="button" class="btn" id="edZoomOut" aria-label="Diminuir o zoom" title="Diminuir (-)">−</button>
           <button type="button" class="btn" data-ezoom="auto" aria-pressed="true" title="Ajusta ao tamanho da tela (0)">Auto</button>
@@ -721,14 +722,14 @@
             <button type="button" class="btn" id="edResize">Aplicar</button>
           </div>
           <div class="btns">
-            <button type="button" class="btn" id="edNew">Nova tela em branco</button>
-            <button type="button" class="btn" id="spClear">Limpar camada</button>
+            <button type="button" class="btn" id="edWipe" title="Apaga todas as camadas e frames, mantendo o tamanho">Apagar tudo</button>
+            <button type="button" class="btn" id="spClear" title="Limpa só a camada marcada, neste frame">Limpar camada</button>
           </div>
           <div class="btns">
             <button type="button" class="btn" id="edFlipH">Espelhar ↔</button>
             <button type="button" class="btn" id="edFlipV">Espelhar ↕</button>
           </div>
-          <p class="note">Aplicar muda o tamanho de todas as camadas e frames, mantendo o desenho no canto superior esquerdo. Espelhar vale para o sprite inteiro. Tamanho de 1 a 256 px.</p>
+          <p class="note">Aplicar muda o tamanho de todas as camadas e frames, mantendo o desenho no canto superior esquerdo. Novo sprite (no topo) começa em branco com o tamanho daqui. Apagar tudo esvazia o sprite e mantém o tamanho. Tudo isso dá para desfazer. Espelhar vale para o sprite inteiro. Tamanho de 1 a 256 px.</p>
         </div>
       </details>
       <details class="step" open>

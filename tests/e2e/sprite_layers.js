@@ -97,7 +97,6 @@ const MOCK = () => {
   // abrir a folha exportada como 2 frames
   await page.setInputFiles('#edFile', sp + '/out/layers_sheet.png');
   await page.fill('#edSheetN', '2');
-  await page.click('#edNew'); // pede confirmação
   await page.setInputFiles('#edFile', sp + '/out/layers_sheet.png'); await page.waitForTimeout(500);
   ok('sheet opens as 2 frames of 16x12', (await info()).includes('2 frames') && (await page.inputValue('#edW')) === '16', await info());
 

@@ -27,6 +27,7 @@ const MOCK = () => {
   const box = await page.locator('#edCanvas').boundingBox();
   const cell = box.width / 16;
   const at = (x, y) => [box.x + (x + 0.5) * cell, box.y + (y + 0.5) * cell];
+  const info0 = () => page.textContent('#edInfo');
   const px = (x, y) => page.evaluate(([x, y]) => { const c = document.getElementById('edCanvas'); const z = c.width / 16; const d = c.getContext('2d').getImageData(x * z + 1, y * z + 1, 1, 1).data; return Array.from(d); }, [x, y]);
   const setColor = (hx) => page.locator('#edColor').evaluate((el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, hx);
   ok('canvas size', Math.abs(box.width - 128) < 1 && Math.abs(box.height - 96) < 1, box.width + 'x' + box.height);
@@ -82,11 +83,28 @@ const MOCK = () => {
   await page.click('#edToGarage'); await page.waitForTimeout(200);
   ok('garage thumb appears in editor', (await page.locator('#edGarage button').count()) === 1);
 
-  await page.click('#edFromCar'); ok('first click asks for confirmation', (await page.textContent('#edFromCar')).includes('de novo'));
   await page.click('#edFromCar'); await page.waitForTimeout(300);
   const dims = await page.evaluate(() => [+document.getElementById('edW').value, +document.getElementById('edH').value]);
   ok('generator car opened with its own size', dims[0] > 16 && dims[1] > 8, dims.join('x'));
 
+  // apagar o sprite: Novo sprite e Apagar tudo, ambos sem confirmação e com desfazer
+  const sz = () => page.evaluate(() => [+document.getElementById('edW').value, +document.getElementById('edH').value].join('x'));
+  const ink = () => page.evaluate(() => { const c = document.getElementById('edCanvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+  ok('sprite has ink before wiping', (await ink()) > 0);
+  await page.click('#edWipe'); await page.waitForTimeout(150);
+  ok('Apagar tudo empties the sprite in one click, keeping the size', (await ink()) === 0 && (await sz()) === dims.join('x'), await sz());
+  await page.click('#spUndo'); await page.waitForTimeout(150);
+  ok('undo brings the sprite back', (await ink()) > 0);
+  await page.fill('#edW', '24'); await page.fill('#edH', '16');
+  await page.click('#edNew'); await page.waitForTimeout(150);
+  ok('Novo sprite makes a blank 24x16 in one click', (await ink()) === 0 && (await sz()) === '24x16');
+  ok('one frame, one layer after Novo sprite', (await info0()).includes('1 frame') && (await info0()).includes('1 camada'));
+  await page.click('#spUndo'); await page.waitForTimeout(150);
+  ok('undo of Novo sprite restores size and drawing', (await sz()) === dims.join('x') && (await ink()) > 0, await sz());
+  await page.click('#spRedo'); await page.click('#spUndo');
+  await page.click('#edWipe'); await page.waitForTimeout(100);
+  await page.click('#edWipe'); ok('wiping an empty sprite says so', (await page.textContent('#edStatus')).includes('já está em branco'));
+  await page.click('#spUndo');
   await page.waitForTimeout(700);
   await page.reload(); await page.waitForTimeout(700);
   await page.click('#tabEd'); await page.waitForTimeout(500);

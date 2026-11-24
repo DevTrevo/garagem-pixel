@@ -80,14 +80,6 @@
   function edHasInk() {
     return ed.P.frames.some(function (fr) { return fr.cels.some(function (c) { for (var i = 3; i < c.data.length; i += 4) if (c.data[i]) return true; return false; }); });
   }
-  // Ações que apagam o desenho pedem um segundo clique (confirm() não existe aqui).
-  function edConfirm(key, btn, label, go) {
-    if (ed.armed === key) { clearTimeout(ed.armedTimer); ed.armed = null; btn.textContent = label; go(); return; }
-    if (!edHasInk()) { go(); return; }
-    ed.armed = key; btn.textContent = 'Clique de novo para apagar o desenho';
-    clearTimeout(ed.armedTimer);
-    ed.armedTimer = setTimeout(function () { ed.armed = null; btn.textContent = label; }, 3000);
-  }
   function edClampSel() { ed.f = clamp(ed.f, 0, ed.P.frames.length - 1); ed.l = clamp(ed.l, 0, ed.P.layers.length - 1); }
   function edSetProject(P, keepHist) {
     edStop(); ed.sel = null;
@@ -102,9 +94,15 @@
     var before = SP.cloneProject(ed.P), r = fn();
     if (r === false) return false;
     ed.hist.pushProj(before, SP.cloneProject(ed.P));
+    $('edW').value = ed.P.w; $('edH').value = ed.P.h; $('edFps').value = ed.P.fps;
     edClampSel(); edLayout(); edRefresh(); edSaveSoon();
     if (msg) edSay(msg);
     return true;
+  }
+
+  // Troca o sprite inteiro por outro como um passo que dá para desfazer (sem pedir confirmação).
+  function edReplace(P, msg) {
+    return edStruct(function () { SP.setProject(ed.P, P); ed.f = 0; ed.l = P.layers.length - 1; }, msg);
   }
 
   // ---------- zoom ----------
@@ -641,10 +639,12 @@
     edStruct(function () { SP.mapCels(ed.P, function (c) { return SP.resize(c, w, h); }, w, h); }, 'Tela agora com ' + w + ' × ' + h + ' px.');
   });
   $('edNew').addEventListener('click', function () {
-    edConfirm('new', this, 'Nova tela em branco', function () {
-      var w = clamp(parseInt($('edW').value, 10) || 64, 1, 256), h = clamp(parseInt($('edH').value, 10) || 48, 1, 256);
-      edSetProject(SP.project(w, h)); edSaveSoon(); edSay('Tela em branco de ' + w + ' × ' + h + ' px.');
-    });
+    var w = clamp(parseInt($('edW').value, 10) || 64, 1, 256), h = clamp(parseInt($('edH').value, 10) || 48, 1, 256);
+    edReplace(SP.project(w, h), 'Novo sprite em branco de ' + w + ' × ' + h + ' px. O anterior continua no Desfazer.');
+  });
+  $('edWipe').addEventListener('click', function () {
+    if (!edHasInk() && ed.P.frames.length === 1 && ed.P.layers.length === 1) { edSay('O sprite já está em branco.'); return; }
+    edReplace(SP.project(ed.P.w, ed.P.h), 'Sprite apagado (tela de ' + ed.P.w + ' × ' + ed.P.h + ' px). Use Desfazer para voltar.');
   });
   $('spClear').addEventListener('click', function () {
     var before = SP.clone(cel());
@@ -678,19 +678,14 @@
     msg += r.n > 1 ? ', ' + r.n + ' frames).' : ').';
     if (n > 1 && r.n === 1) msg += ' A largura da imagem não divide por ' + n + ', então abri como um frame só.';
     if (r.cut) msg += ' Passava de 256 px, então foi cortada.';
-    edSetProject(r.P); edSaveSoon(); edSay(msg);
+    edReplace(r.P, msg + ' O anterior continua no Desfazer.');
   }
   $('edFromCar').addEventListener('click', function () {
     if (!stat) { edSay('Gere um carro no Gerador primeiro.'); return; }
-    var self = this;
-    edConfirm('car', self, 'Carro do gerador', function () {
-      var d = SP.fromImage(stat.img);
-      edSetProject(SP.projectFromDoc(d));
-      var gc = typeof gameCar === 'function' ? gameCar() : null;
-      if (gc) edSetCar(gc.id, true);
-      edSaveSoon();
-      edSay('Carro do gerador aberto (' + d.w + ' × ' + d.h + ' px). Pode retocar à vontade.' + (stat.img.w > 256 || stat.img.h > 256 ? ' Atenção: o editor aceita até 256 px, o resto foi cortado.' : ''));
-    });
+    var d = SP.fromImage(stat.img), gc = typeof gameCar === 'function' ? gameCar() : null;
+    edReplace(SP.projectFromDoc(d), 'Carro do gerador aberto (' + d.w + ' × ' + d.h + ' px). Pode retocar à vontade.' +
+      (stat.img.w > 256 || stat.img.h > 256 ? ' Atenção: o editor aceita até 256 px, o resto foi cortado.' : '') + ' O anterior continua no Desfazer.');
+    if (gc) edSetCar(gc.id, true);
   });
   $('edFile').addEventListener('change', function () {
     var f = this.files && this.files[0]; this.value = '';
@@ -709,17 +704,9 @@
       var b = document.createElement('button'); b.type = 'button'; b.title = 'Abrir este carro no editor'; b.setAttribute('aria-label', 'Abrir o carro ' + (idx + 1) + ' da garagem');
       var im = document.createElement('img'); im.src = it.url; im.alt = ''; b.appendChild(im);
       b.addEventListener('click', function () {
-        var key = 'g' + it.id;
-        if (ed.armed !== key && edHasInk()) {
-          ed.armed = key; clearTimeout(ed.armedTimer);
-          ed.armedTimer = setTimeout(function () { ed.armed = null; }, 3000);
-          edSay('Isso troca o desenho atual. Clique de novo no mesmo carro para confirmar.');
-          return;
-        }
-        ed.armed = null;
         imageFromUrl(it.url, function (img) {
           if (!img) { edSay('Não consegui abrir esse carro.'); return; }
-          edSetProject(SP.projectFromDoc(SP.fromImage(img))); edSaveSoon(); edSay('Carro da garagem aberto no editor.');
+          edReplace(SP.projectFromDoc(SP.fromImage(img)), 'Carro da garagem aberto no editor. O anterior continua no Desfazer.');
         });
       });
       box.appendChild(b);
