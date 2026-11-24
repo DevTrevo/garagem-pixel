@@ -205,6 +205,18 @@
     return true;
   }
 
+
+  // Pegada do pincel: lista de [dx, dy] relativa ao pixel clicado (tamanho 1 a 8; quadrado ou redondo).
+  function brush(size, round) {
+    size = Math.max(1, Math.min(8, size | 0));
+    var lo = -Math.floor((size - 1) / 2), c = (size - 1) / 2, out = [];
+    for (var j = 0; j < size; j++) for (var i = 0; i < size; i++) {
+      if (round && size > 2) { var dx = i - c, dy = j - c; if (dx * dx + dy * dy > (size / 2) * (size / 2) - 0.5) continue; }
+      out.push([lo + i, lo + j]);
+    }
+    return out;
+  }
+
   // ================= Projeto: camadas × frames =================
   // Uma camada vale para todos os frames; cada frame tem uma "cel" (imagem) por camada.
   function project(w, h) {
@@ -325,6 +337,7 @@
   }
 
   var api = {
+    brush: brush,
     normRect: normRect, clipRect: clipRect, extract: extract, clearRect: clearRect, blit: blit, flipRect: flipRect,
     create: create, clone: clone, fromImage: fromImage, inside: inside, get: get, set: set, same: same,
     line: line, rect: rect, ellipse: ellipse, flood: flood, flipH: flipH, flipV: flipV, shift: shift, resize: resize,

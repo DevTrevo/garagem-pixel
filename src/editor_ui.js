@@ -5,7 +5,7 @@
     P: SP.project(64, 48), f: 0, l: 0, hist: SP.projHistory(120),
     tool: 'pencil', color: [239, 125, 87], zoom: 'auto', z: 8, grid: true, onion: false, scale: 1,
     pal: SP.SWEETIE.map(SP.parseHex), drag: null, last: null, armed: null, armedTimer: 0, saveTimer: 0,
-    playing: false, playTimer: 0, playF: 0, car: '', sel: null, clip: null
+    playing: false, playTimer: 0, playF: 0, car: '', sel: null, clip: null, brush: 1
   };
   var ED_KEY = 'garagem-pixel-editor-v2', ED_KEY_V1 = 'garagem-pixel-editor-v1';
   var edCanvas = $('edCanvas'), edGrid = $('edGrid'), edBuf = document.createElement('canvas'), edBuf2 = document.createElement('canvas');
@@ -348,10 +348,20 @@
     var r = edCanvas.getBoundingClientRect();
     return [Math.floor((ev.clientX - r.left) / r.width * ed.P.w), Math.floor((ev.clientY - r.top) / r.height * ed.P.h)];
   }
+  // Um pixel só (balde). "Só onde já tem cor" protege o fundo transparente; a borracha ignora essa trava.
+  function stamp1(x, y, col) {
+    var d = cel(), lock = $('edLock').checked && col[3] > 0;
+    function put(px, py) {
+      if (lock) { var c = SP.get(d, px, py); if (!c || !c[3]) return; }
+      SP.set(d, px, py, col);
+    }
+    put(x, y);
+    if ($('edMirror').checked) put(d.w - 1 - x, y);
+  }
+  // Pincel com o tamanho e o formato escolhidos (lápis, borracha, linha, retângulo, elipse).
   function stamp(x, y, col) {
-    var d = cel();
-    SP.set(d, x, y, col);
-    if ($('edMirror').checked) SP.set(d, d.w - 1 - x, y, col);
+    var fp = SP.brush(ed.brush, $('edRound').checked);
+    for (var i = 0; i < fp.length; i++) stamp1(x + fp[i][0], y + fp[i][1], col);
   }
   function edPointerDown(ev) {
     if (ev.button !== 0 && ev.button !== 2) return;
@@ -383,7 +393,7 @@
     ed.drag = { before: SP.clone(cel()), start: p, col: col, tool: ed.tool, f: ed.f, l: ed.l };
     ed.last = p;
     if (ed.tool === 'bucket') {
-      SP.flood(cel(), p[0], p[1], function (x, y) { stamp(x, y, col); });
+      SP.flood(cel(), p[0], p[1], function (x, y) { stamp1(x, y, col); });
       edEnd();
       return;
     }
@@ -559,6 +569,11 @@
       edRefresh();
     });
   });
+  function edSetBrush(n) {
+    ed.brush = clamp(n, 1, 4);
+    document.querySelectorAll('[data-ebrush]').forEach(function (b) { b.setAttribute('aria-pressed', String(parseInt(b.getAttribute('data-ebrush'), 10) === ed.brush)); });
+  }
+  document.querySelectorAll('[data-ebrush]').forEach(function (b) { b.addEventListener('click', function () { edSetBrush(parseInt(b.getAttribute('data-ebrush'), 10)); }); });
   $('edGridOn').addEventListener('change', function () { ed.grid = this.checked; drawGrid(); });
   $('edOnion').addEventListener('change', function () { ed.onion = this.checked; edDraw(); });
   $('spUndo').addEventListener('click', edUndo);
@@ -768,6 +783,8 @@
       selNudge(k === 'arrowleft' ? -st : k === 'arrowright' ? st : 0, k === 'arrowup' ? -st : k === 'arrowdown' ? st : 0);
       return;
     }
+    if (k === '[') { edSetBrush(ed.brush - 1); edSay('Pincel de ' + ed.brush + ' px.'); return; }
+    if (k === ']') { edSetBrush(ed.brush + 1); edSay('Pincel de ' + ed.brush + ' px.'); return; }
     var map = { b: 'pencil', e: 'eraser', g: 'bucket', i: 'picker', l: 'line', r: 'rect', o: 'ellipse', m: 'select' };
     if (map[k]) { edSetTool(map[k]); return; }
     if (k === '+' || k === '=') edStep(1); else if (k === '-') edStep(-1); else if (k === '0') edSetZoom('auto');

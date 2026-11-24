@@ -648,15 +648,26 @@
             <button type="button" class="btn" id="selFlipH" disabled title="Espelhar a área na horizontal">↔ área</button>
             <button type="button" class="btn" id="selFlipV" disabled title="Espelhar a área na vertical">↕ área</button>
           </div>
+          <div class="field">
+            <span>Tamanho do pincel</span>
+            <div class="seg" role="group" aria-label="Tamanho do pincel">
+              <button type="button" class="btn" data-ebrush="1" aria-pressed="true" title="Pincel de 1 pixel ([ e ] mudam)">1 px</button>
+              <button type="button" class="btn" data-ebrush="2" aria-pressed="false">2 px</button>
+              <button type="button" class="btn" data-ebrush="3" aria-pressed="false">3 px</button>
+              <button type="button" class="btn" data-ebrush="4" aria-pressed="false">4 px</button>
+            </div>
+          </div>
           <div class="two">
-            <label class="check"><input type="checkbox" id="edFill">Formas cheias</label>
+            <label class="check"><input type="checkbox" id="edRound">Pincel redondo</label>
             <label class="check"><input type="checkbox" id="edMirror">Simetria</label>
+            <label class="check"><input type="checkbox" id="edFill">Formas cheias</label>
+            <label class="check" title="Pinta só os pixels que já têm cor, sem invadir o fundo transparente"><input type="checkbox" id="edLock">Só onde já tem cor</label>
           </div>
           <div class="btns">
             <button type="button" class="btn" id="spUndo" disabled title="Desfazer (Ctrl+Z)">Desfazer</button>
             <button type="button" class="btn" id="spRedo" disabled title="Refazer (Ctrl+Y)">Refazer</button>
           </div>
-          <p class="note">Atalhos: B lápis, E borracha, G balde, I conta-gotas, L linha, R retângulo, O elipse, M selecionar, Ctrl+Z e Ctrl+Y. Com uma área selecionada: arraste para mover (Alt copia), setas movem 1 px (Shift, 8 px), Ctrl+C, Ctrl+X, Ctrl+V, Delete e Esc. Sem área, as setas movem a camada inteira. Zoom: + e − (ou Ctrl + roda do mouse); 0 ajusta ao tamanho da tela. Frames: vírgula e ponto trocam de frame; P toca a animação.</p>
+          <p class="note">Atalhos: B lápis, E borracha, G balde, I conta-gotas, L linha, R retângulo, O elipse, M selecionar, [ e ] mudam o tamanho do pincel, Ctrl+Z e Ctrl+Y. Com uma área selecionada: arraste para mover (Alt copia), setas movem 1 px (Shift, 8 px), Ctrl+C, Ctrl+X, Ctrl+V, Delete e Esc. Sem área, as setas movem a camada inteira. Zoom: + e − (ou Ctrl + roda do mouse); 0 ajusta ao tamanho da tela. Frames: vírgula e ponto trocam de frame; P toca a animação.</p>
         </div>
       </details>
       <details class="step" open>

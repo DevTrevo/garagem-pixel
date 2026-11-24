@@ -146,4 +146,15 @@ ok('palette is valid', S.SWEETIE.length === 16 && S.SWEETIE.every(c => S.parseHe
   ok('flipRect vertical', S.same(S.get(f, 1, 1), B) && S.get(f, 1, 0)[3] === 0);
   ok('flipRect outside returns false', !S.flipRect(f, { x0: 50, y0: 50, x1: 60, y1: 60 }, false));
 }
+// ===== pincel =====
+{
+  ok('brush 1 is a single pixel', S.brush(1).length === 1 && S.brush(1)[0].join() === '0,0');
+  ok('brush sizes cover n×n squares', S.brush(2).length === 4 && S.brush(3).length === 9 && S.brush(4).length === 16);
+  ok('brush 3 is centred', S.brush(3).some(o => o.join() === '-1,-1') && S.brush(3).some(o => o.join() === '1,1'));
+  ok('brush 2 includes the clicked pixel', S.brush(2).some(o => o.join() === '0,0'));
+  ok('round 3 drops the corners (plus shape)', S.brush(3, true).length === 5 && !S.brush(3, true).some(o => Math.abs(o[0]) === 1 && Math.abs(o[1]) === 1));
+  ok('round 4 drops the four corners', S.brush(4, true).length === 12);
+  ok('round 2 stays square', S.brush(2, true).length === 4);
+  ok('size is clamped', S.brush(99).length === 64 && S.brush(0).length === 1);
+}
 console.log(fails ? fails + ' FALHAS' : 'tudo certo'); process.exit(fails ? 1 : 0);
